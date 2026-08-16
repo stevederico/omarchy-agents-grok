@@ -1,0 +1,20 @@
+--- a/shell/plugins/agents/manifest.json
++++ b/shell/plugins/agents/manifest.json
+@@ -23,6 +23,8 @@
+         "fireworks": { "enabled": true }
+       },
+       "refreshIntervalSec": 900,
++      "grokLimitsMode": "Manual",
++      "grokLimitsIntervalSec": 900,
+       "syncMode": "Off",
+       "syncDir": "",
+       "syncFileName": "",
+@@ -31,6 +33,8 @@
+     },
+     "schema": [
+       { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh interval (seconds)", "min": 30, "max": 3600, "step": 30, "defaultValue": 900 },
++      { "key": "grokLimitsMode", "type": "enum", "label": "Grok weekly limit updates", "options": ["Manual", "Auto"], "defaultValue": "Manual", "description": "Auto opens a throwaway Grok and reads /usage on a timer. Manual only updates when you press the button." },
++      { "key": "grokLimitsIntervalSec", "type": "integer", "label": "Grok auto-check interval (seconds)", "min": 900, "max": 7200, "step": 900, "defaultValue": 900, "description": "How often Auto mode scrapes the Grok weekly limit. 900 = 15 minutes." },
+       { "key": "syncMode", "type": "enum", "label": "Synced aggregation", "options": ["Off", "On"], "defaultValue": "Off", "description": "When On, write this machine's local usage snapshot and merge snapshots from other machines." },
+       { "key": "syncDir", "type": "path", "label": "Sync folder", "defaultValue": "", "description": "A folder synced by Syncthing, Dropbox, rsync, etc." },
+       { "key": "syncFileName", "type": "string", "label": "Snapshot file name", "defaultValue": "", "description": "Optional. Defaults to <hostname>.json. Use a different file name on each machine, such as laptop.json or desktop.json." },

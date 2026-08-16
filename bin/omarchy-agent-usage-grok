@@ -1,0 +1,577 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Grok usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Grok Build TUI usage into one Omarchy agents-panel record.
+
+The stock panel only watches JSON in ~/.local/state/omarchy/agents/usage/.
+Omarchy ships collectors for Claude, Codex, and Fireworks; this writes grok.json
+in the same contract so the bar icon and panel show Grok sessions.
+
+Local stats come from turn_completed usage blocks in ~/.grok/sessions/**/updates.jsonl.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import fcntl
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "grok"
+AGENT_NAME = "Grok"
+AUTH_HELP = "Run `grok` and sign in."
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+TUI_LIMITS_REUSE_SECONDS = 900
+TUI_SESSION = "omarchy-grok-usage"
+TUI_DUMP = Path("/tmp/omarchy-grok-usage-tui.txt")
+
+
+def grok_home() -> Path:
+  return Path(os.environ.get("GROK_HOME") or (Path.home() / ".grok")).expanduser()
+
+
+def usage_dir() -> Path:
+  root = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
+  return root / "omarchy" / "agents" / "usage"
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def date_string(value: dt.date) -> str:
+  return value.strftime("%Y-%m-%d")
+
+
+def local_date_string() -> str:
+  return date_string(dt.datetime.now().date())
+
+
+def recent_date_strings() -> list[str]:
+  today = dt.datetime.now().date()
+  return [date_string(today - dt.timedelta(days=offset)) for offset in range(6, -1, -1)]
+
+
+def number(value: Any) -> int:
+  try:
+    n = float(value or 0)
+    return max(0, round(n) if n == n else 0)
+  except (TypeError, ValueError):
+    return 0
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def empty_stats() -> dict[str, Any]:
+  recent_dates = recent_date_strings()
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [{"date": day, "messageCount": 0} for day in recent_dates],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+  }
+
+
+def local_date_from_timestamp(value: Any) -> str:
+  if value is None:
+    return local_date_string()
+  if isinstance(value, (int, float)):
+    try:
+      seconds = float(value) / 1000.0 if float(value) > 10_000_000_000 else float(value)
+      return date_string(dt.datetime.fromtimestamp(seconds).date())
+    except Exception:
+      return local_date_string()
+  raw = str(value).strip()
+  if not raw:
+    return local_date_string()
+  try:
+    parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if parsed.tzinfo is not None:
+      parsed = parsed.astimezone()
+    return date_string(parsed.date())
+  except Exception:
+    return local_date_string()
+
+
+def model_name(raw: Any) -> str:
+  value = str(raw or "grok").strip() or "grok"
+  return value.rstrip("/").split("/")[-1]
+
+
+def grok_signed_in(home: Path) -> bool:
+  auth = home / "auth.json"
+  if not auth.is_file():
+    return False
+  try:
+    data = json.loads(auth.read_text(encoding="utf-8"))
+  except Exception:
+    return False
+  if not isinstance(data, dict) or not data:
+    return False
+  for value in data.values():
+    if isinstance(value, dict) and (value.get("refresh_token") or value.get("user_id")):
+      return True
+  return False
+
+
+def add_usage(
+  stats: dict[str, Any],
+  *,
+  day: str,
+  session_key: str,
+  model: str,
+  input_tokens: int,
+  output_tokens: int,
+  cache_read: int,
+  cache_write: int,
+  today: str,
+  recent: dict[str, dict[str, int]],
+  sessions: set[str],
+  today_sessions: set[str],
+  active_days: set[str],
+  count_prompt: bool = True,
+) -> bool:
+  total = input_tokens + output_tokens + cache_read + cache_write
+  if total <= 0:
+    return False
+
+  if count_prompt:
+    stats["totalPrompts"] = number(stats["totalPrompts"]) + 1
+  sessions.add(session_key)
+  active_days.add(day)
+
+  bucket = stats["modelUsage"].setdefault(model, empty_bucket())
+  bucket["inputTokens"] += input_tokens
+  bucket["outputTokens"] += output_tokens
+  bucket["cacheReadInputTokens"] += cache_read
+  bucket["cacheCreationInputTokens"] += cache_write
+
+  if day in recent:
+    recent[day]["messageCount"] += total
+
+  if day == today:
+    if count_prompt:
+      stats["todayPrompts"] = number(stats["todayPrompts"]) + 1
+    today_sessions.add(session_key)
+    stats["todayTotalTokens"] = number(stats["todayTotalTokens"]) + total
+    today_tokens = stats["todayTokensByModel"]
+    today_tokens[model] = number(today_tokens.get(model)) + total
+  return True
+
+
+def usage_from_turn(usage: dict[str, Any]) -> tuple[int, int, int, int] | None:
+  cache_read = number(usage.get("cachedReadTokens") or usage.get("cacheReadTokens") or usage.get("cacheReadInputTokens"))
+  cache_write = number(usage.get("cacheCreationTokens") or usage.get("cacheWriteTokens") or usage.get("cacheCreationInputTokens"))
+  # Grok's inputTokens include cached reads, the same way Codex reports it.
+  input_tokens = max(0, number(usage.get("inputTokens")) - cache_read - cache_write)
+  # reasoningTokens are already inside outputTokens.
+  output_tokens = number(usage.get("outputTokens"))
+  if not (input_tokens or output_tokens or cache_read or cache_write):
+    total = number(usage.get("totalTokens"))
+    if total <= 0:
+      return None
+    input_tokens = total
+  return input_tokens, output_tokens, cache_read, cache_write
+
+
+def models_from_usage(usage: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+  model_usage = usage.get("modelUsage")
+  if isinstance(model_usage, dict) and model_usage:
+    rows = []
+    for raw_id, bucket in model_usage.items():
+      if isinstance(bucket, dict):
+        rows.append((model_name(raw_id), bucket))
+    if rows:
+      return rows
+  return [(model_name(usage.get("model") or usage.get("modelId") or "grok"), usage)]
+
+
+def scan_updates_file(
+  path: Path,
+  stats: dict[str, Any],
+  *,
+  today: str,
+  recent: dict[str, dict[str, int]],
+  sessions: set[str],
+  today_sessions: set[str],
+  active_days: set[str],
+) -> None:
+  session_fallback = path.parent.name
+  try:
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+      for line in handle:
+        if '"turn_completed"' not in line or '"usage"' not in line:
+          continue
+        try:
+          entry = json.loads(line)
+        except Exception:
+          continue
+        params = entry.get("params") if isinstance(entry.get("params"), dict) else {}
+        update = params.get("update") if isinstance(params.get("update"), dict) else {}
+        if update.get("sessionUpdate") != "turn_completed":
+          continue
+        usage = update.get("usage")
+        if not isinstance(usage, dict):
+          continue
+
+        day = local_date_from_timestamp(entry.get("timestamp") or update.get("timestamp"))
+        session_key = str(params.get("sessionId") or session_fallback)
+        counted = False
+        for model, bucket in models_from_usage(usage):
+          split = usage_from_turn(bucket)
+          if split is None:
+            continue
+          input_tokens, output_tokens, cache_read, cache_write = split
+          if add_usage(
+            stats,
+            day=day,
+            session_key=session_key,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_read=cache_read,
+            cache_write=cache_write,
+            today=today,
+            recent=recent,
+            sessions=sessions,
+            today_sessions=today_sessions,
+            active_days=active_days,
+            count_prompt=not counted,
+          ):
+            counted = True
+  except OSError as exc:
+    print(f"omarchy-agent-usage-grok: ignoring {path}: {exc}", file=sys.stderr)
+
+
+def scan_sessions(home: Path) -> dict[str, Any]:
+  today = local_date_string()
+  recent_dates = recent_date_strings()
+  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+  stats = empty_stats()
+  sessions: set[str] = set()
+  today_sessions: set[str] = set()
+  active_days: set[str] = set()
+
+  root = home / "sessions"
+  files = list(root.rglob("updates.jsonl")) if root.is_dir() else []
+  for path in files:
+    scan_updates_file(
+      path,
+      stats,
+      today=today,
+      recent=recent,
+      sessions=sessions,
+      today_sessions=today_sessions,
+      active_days=active_days,
+    )
+
+  stats["todaySessions"] = len(today_sessions)
+  stats["totalSessions"] = len(sessions)
+  stats["activeDays"] = len(active_days)
+  stats["activeDates"] = sorted(active_days)
+  stats["recentDays"] = [recent[day] for day in recent_dates]
+  return stats
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      payload = json.loads(path.read_text(encoding="utf-8"))
+    else:
+      return None
+  except Exception:
+    return None
+  return payload if isinstance(payload, dict) else None
+
+
+def write_json(path: Path, payload: dict[str, Any], mode: int = 0o644) -> None:
+  path.parent.mkdir(parents=True, exist_ok=True)
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+    tmp.chmod(mode)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def scan_cache_paths(home: Path) -> tuple[Path, Path]:
+  digest = hashlib.sha1(str(home).encode("utf-8")).hexdigest()[:16]
+  root = cache_root()
+  return root / f"grok-scan-{digest}.json", root / f"grok-scan-{digest}.lock"
+
+
+def cached_scan(home: Path, max_age_seconds: float) -> dict[str, Any]:
+  cache_file, lock_file = scan_cache_paths(home)
+  today = local_date_string()
+
+  def usable(cached: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not cached or cached.get("schemaVersion") != 1 or cached.get("scanDate") != today:
+      return None
+    stats = cached.get("stats")
+    return stats if isinstance(stats, dict) else None
+
+  cached = usable(read_fresh_json(cache_file, max_age_seconds))
+  if cached is not None:
+    return cached
+
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached = usable(read_fresh_json(cache_file, max_age_seconds))
+    if cached is not None:
+      return cached
+    stats = scan_sessions(home)
+    try:
+      write_json(cache_file, {"schemaVersion": 1, "scanDate": today, "stats": stats})
+    except Exception as exc:
+      print(f"omarchy-agent-usage-grok: could not write usage cache ({exc})", file=sys.stderr)
+    return stats
+
+
+def tui_limits_cache_path() -> Path:
+  return cache_root() / "grok-tui-limits.json"
+
+
+def parse_tui_dump(text: str) -> dict[str, Any] | None:
+  """Pull the weekly SuperGrok meter out of a /usage pane dump."""
+  tier = ""
+  match = re.search(r"Weekly limit\s*\(([^)]+)\)", text, re.IGNORECASE)
+  if match:
+    tier = match.group(1).strip()
+
+  percent = None
+  match = re.search(r"(?m)^\s*(\d{1,3})\s*%\s*$", text)
+  if match:
+    percent = min(1.0, max(0.0, int(match.group(1)) / 100.0))
+  else:
+    match = re.search(r"(\d{1,3})\s*%", text)
+    if match:
+      percent = min(1.0, max(0.0, int(match.group(1)) / 100.0))
+
+  resets_at = ""
+  match = re.search(r"Resets:\s*([A-Za-z]+ \d{1,2},\s*\d{1,2}:\d{2})", text)
+  if match:
+    raw = re.sub(r"\s+", " ", match.group(1)).strip()
+    year = dt.datetime.now().year
+    try:
+      parsed = dt.datetime.strptime(f"{raw} {year}", "%B %d, %H:%M %Y")
+      parsed = parsed.replace(tzinfo=dt.datetime.now().astimezone().tzinfo)
+      if parsed < dt.datetime.now(parsed.tzinfo) - dt.timedelta(days=1):
+        parsed = parsed.replace(year=year + 1)
+      resets_at = parsed.isoformat()
+    except ValueError:
+      resets_at = ""
+
+  if percent is None and not tier:
+    return None
+  limits = []
+  if percent is not None:
+    limits.append({
+      "label": "Weekly (7-day)",
+      "title": "Weekly",
+      "percent": percent,
+      "resetsAt": resets_at,
+    })
+  return {"tierLabel": tier, "limits": limits}
+
+
+def tmux(*args: str, check: bool = False) -> subprocess.CompletedProcess[str]:
+  return subprocess.run(["tmux", *args], check=check, text=True, capture_output=True)
+
+
+def scrape_tui_limits() -> dict[str, Any] | None:
+  """Open a throwaway interactive Grok, send /usage, dump the modal."""
+  if not shutil.which("tmux") or not shutil.which("grok"):
+    return None
+
+  workdir = Path(tempfile.mkdtemp(prefix="omarchy-grok-usage-"))
+  session_id = "01a00699-2222-4000-8000-ffffffffffff"
+  try:
+    tmux("kill-session", "-t", TUI_SESSION)
+    tmux("new-session", "-d", "-s", TUI_SESSION, "-x", "160", "-y", "48", "-c", str(workdir))
+    tmux("set-option", "-t", TUI_SESSION, "remain-on-exit", "on")
+    tmux("send-keys", "-t", TUI_SESSION,
+         f"exec env -u GROK_AGENT -u GROK_SESSION_ID grok --no-alt-screen --session-id {session_id}",
+         "Enter")
+
+    ready = False
+    dump = ""
+    for _ in range(50):
+      time.sleep(0.4)
+      captured = tmux("capture-pane", "-t", TUI_SESSION, "-p", "-J")
+      dump = captured.stdout or ""
+      if "Starting sess" in dump:
+        continue
+      if "always-approve" in dump or "Shift+Tab" in dump or "/help" in dump:
+        ready = True
+        break
+    if not ready:
+      print("omarchy-agent-usage-grok: TUI did not become ready", file=sys.stderr)
+      return None
+
+    tmux("send-keys", "-t", TUI_SESSION, "/usage")
+    time.sleep(0.2)
+    tmux("send-keys", "-t", TUI_SESSION, "Enter")
+
+    parsed = None
+    for _ in range(20):
+      time.sleep(0.3)
+      captured = tmux("capture-pane", "-t", TUI_SESSION, "-p", "-J")
+      dump = captured.stdout or ""
+      parsed = parse_tui_dump(dump)
+      if parsed and parsed.get("limits"):
+        break
+    try:
+      TUI_DUMP.write_text(dump, encoding="utf-8")
+    except OSError:
+      pass
+    return parsed
+  except Exception as exc:
+    print(f"omarchy-agent-usage-grok: TUI scrape failed ({exc})", file=sys.stderr)
+    return None
+  finally:
+    tmux("kill-session", "-t", TUI_SESSION)
+    shutil.rmtree(workdir, ignore_errors=True)
+
+
+def cached_tui_limits(force: bool) -> dict[str, Any] | None:
+  cache = tui_limits_cache_path()
+  lock_file = cache.with_suffix(".lock")
+  max_age = 0 if force else TUI_LIMITS_REUSE_SECONDS
+  cached = read_fresh_json(cache, max_age)
+  if cached and cached.get("schemaVersion") == 1 and isinstance(cached.get("limits"), list):
+    return {"tierLabel": str(cached.get("tierLabel") or ""), "limits": cached["limits"]}
+
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached = read_fresh_json(cache, max_age)
+    if cached and cached.get("schemaVersion") == 1 and isinstance(cached.get("limits"), list):
+      return {"tierLabel": str(cached.get("tierLabel") or ""), "limits": cached["limits"]}
+    scraped = scrape_tui_limits()
+    if not scraped:
+      stale = read_fresh_json(cache, float("inf"))
+      if stale and isinstance(stale.get("limits"), list):
+        return {"tierLabel": str(stale.get("tierLabel") or ""), "limits": stale["limits"]}
+      return None
+    try:
+      write_json(cache, {
+        "schemaVersion": 1,
+        "fetchedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        **scraped,
+      })
+    except Exception as exc:
+      print(f"omarchy-agent-usage-grok: could not cache TUI limits ({exc})", file=sys.stderr)
+    return scraped
+
+
+def existing_record() -> dict[str, Any]:
+  path = usage_dir() / "grok.json"
+  try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return {}
+  return data if isinstance(data, dict) else {}
+
+
+def build_record(stats: dict[str, Any], signed_in: bool, tui: dict[str, Any] | None = None) -> dict[str, Any]:
+  has_usage = (
+    number(stats.get("totalPrompts")) > 0
+    or number(stats.get("totalSessions")) > 0
+    or number(stats.get("activeDays")) > 0
+  )
+  previous = existing_record()
+  tui = tui or {}
+  tier = str(tui.get("tierLabel") or previous.get("tierLabel") or "") or (
+    "Grok Build" if (has_usage or signed_in) else ""
+  )
+  limits = tui.get("limits") if isinstance(tui.get("limits"), list) and tui["limits"] else None
+  if limits is None:
+    limits = previous.get("limits") if isinstance(previous.get("limits"), list) else []
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+    "ready": has_usage or signed_in or bool(limits),
+    "hasLocalStats": True,
+    "hasPromptStats": True,
+    "tierLabel": tier,
+    "usageStatusText": "" if (has_usage or signed_in or limits) else "Waiting for auth",
+    "authHelpText": AUTH_HELP,
+    "limits": limits,
+  }
+  record.update(stats)
+  if limits:
+    record["limits"] = limits
+  if tier:
+    record["tierLabel"] = tier
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Collect Grok usage for the Omarchy agents panel")
+  parser.add_argument("--force", action="store_true", help="rescan sessions, ignoring the cache")
+  parser.add_argument("--limits-only", action="store_true", help="reuse a recent scan; refresh the TUI weekly meter if stale")
+  parser.add_argument("--write", action="store_true", help="write ~/.local/state/omarchy/agents/usage/grok.json")
+  parser.add_argument("--scrape-tui", action="store_true", help="open a throwaway Grok TUI, send /usage, and read the weekly limit")
+  parser.add_argument("--parse-tui", metavar="FILE", help="parse a captured /usage pane instead of launching Grok")
+  args = parser.parse_args()
+
+  home = grok_home()
+  max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+  try:
+    stats = cached_scan(home, max_age)
+  except Exception as exc:
+    print(f"omarchy-agent-usage-grok: cache unavailable ({exc}); scanning directly", file=sys.stderr)
+    stats = scan_sessions(home)
+
+  tui = None
+  if args.parse_tui:
+    tui = parse_tui_dump(Path(args.parse_tui).read_text(encoding="utf-8", errors="replace"))
+  elif args.scrape_tui or args.limits_only:
+    tui = cached_tui_limits(force=args.force or (args.scrape_tui and args.force))
+
+  record = build_record(stats, grok_signed_in(home), tui)
+  payload = json.dumps(record, separators=(",", ":"), sort_keys=True)
+  if args.write:
+    write_json(usage_dir() / "grok.json", record, mode=0o600)
+  if not args.write or sys.stdout.isatty():
+    print(payload)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

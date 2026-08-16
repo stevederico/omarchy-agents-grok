@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh Omarchy agents panel with Grok usage
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/lib/omarchy/omarchy-agent-usage-grok --write
+Nice=10

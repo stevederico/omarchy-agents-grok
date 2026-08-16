@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-15T18:00:00-07:00","params":{"sessionId":"sess-1","update":{"sessionUpdate":"turn_completed","usage":{"inputTokens":110,"outputTokens":20,"cachedReadTokens":10,"model":"grok-4.6-build"}}}}
+{"timestamp":"2026-08-15T18:01:00-07:00","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"ignore me"}}}}

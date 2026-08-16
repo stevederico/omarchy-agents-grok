@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Grok usage when Grok sessions change
+
+[Path]
+PathChanged=%h/.grok/active_sessions.json
+PathModified=%h/.grok/active_sessions.json
+Unit=omarchy-agent-usage-grok.service
+
+[Install]
+WantedBy=default.target

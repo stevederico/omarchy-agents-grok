@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep the Omarchy agents panel updated with Grok usage
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=2min
+AccuracySec=15s
+Persistent=true
+Unit=omarchy-agent-usage-grok.service
+
+[Install]
+WantedBy=timers.target

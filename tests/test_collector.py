@@ -16,30 +16,9 @@ def load_collector():
 grok = load_collector()
 
 
-class ParseTuiTest(unittest.TestCase):
-  def test_minimal_usage_pane(self):
-    parsed = grok.parse_tui_dump((FIXTURES / "usage-pane-minimal.txt").read_text())
-    self.assertIsNotNone(parsed)
-    self.assertEqual(parsed["tierLabel"], "SuperGrok Heavy")
-    self.assertEqual(len(parsed["limits"]), 1)
-    limit = parsed["limits"][0]
-    self.assertEqual(limit["title"], "Weekly")
-    self.assertEqual(limit["percent"], 0.4)
-    self.assertIn("2026-08-20T12:20:00", limit["resetsAt"])
-
-  def test_captured_tmux_pane(self):
-    parsed = grok.parse_tui_dump((FIXTURES / "usage-pane.txt").read_text())
-    self.assertIsNotNone(parsed)
-    self.assertEqual(parsed["tierLabel"], "SuperGrok Heavy")
-    self.assertEqual(parsed["limits"][0]["percent"], 0.4)
-
-  def test_unrelated_text_is_ignored(self):
-    self.assertIsNone(grok.parse_tui_dump("no meters here"))
-
-
 class UsageMathTest(unittest.TestCase):
   def test_cached_reads_are_split_out_of_input(self):
-    split = grok.usage_from_turn({
+    split = grok.split_tokens({
       "inputTokens": 110,
       "outputTokens": 20,
       "cachedReadTokens": 10,
@@ -49,17 +28,12 @@ class UsageMathTest(unittest.TestCase):
 
 class SessionScanTest(unittest.TestCase):
   def test_turn_completed_lines_are_counted(self):
-    stats = grok.empty_stats()
-    recent = {row["date"]: row for row in stats["recentDays"]}
+    usage = grok.SessionUsage(today="2026-08-15")
     grok.scan_updates_file(
       FIXTURES / "session-home" / "sessions" / "demo" / "updates.jsonl",
-      stats,
-      today="2026-08-15",
-      recent=recent,
-      sessions=set(),
-      today_sessions=set(),
-      active_days=set(),
+      usage,
     )
+    stats = usage.stats()
     self.assertEqual(stats["totalPrompts"], 1)
     self.assertEqual(stats["todayTotalTokens"], 130)
     self.assertEqual(stats["todayTokensByModel"]["grok-4.6-build"], 130)
@@ -67,11 +41,25 @@ class SessionScanTest(unittest.TestCase):
 
 class RecordContractTest(unittest.TestCase):
   def test_record_uses_the_agents_panel_ids(self):
-    record = grok.build_record(grok.empty_stats(), signed_in=True)
-    self.assertEqual(record["id"], "grok")
-    self.assertEqual(record["name"], "Grok")
+    empty = grok.build_record(
+      grok.empty_stats(),
+      {"tierLabel": "", "limits": []},
+      signed_in=True,
+    )
+    self.assertEqual(empty["id"], "grok")
+    self.assertEqual(empty["name"], "Grok")
+    self.assertFalse(empty["ready"])
+    json.dumps(empty)
+
+    stats = grok.empty_stats()
+    stats["totalPrompts"] = 1
+    record = grok.build_record(
+      stats,
+      {"tierLabel": "SuperGrok Heavy", "limits": [{"label": "Weekly (7-day)", "percent": 0.2}]},
+      signed_in=True,
+    )
     self.assertTrue(record["ready"])
-    json.dumps(record)
+    self.assertEqual(record["tierLabel"], "SuperGrok Heavy")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 # Plugin patches
 
-These are the Grok-only edits on top of stock `omarchy.agents`.
-They do **not** include the local rename to `sd.agents`.
+Grok-only edits on top of stock `omarchy.agents`. The live plugin in
+`plugin/sd.agents/` is the applied result, including the local rename to
+`sd.agents` / "My Agents". These patches do **not** include that rename.
 
 | Patch | Needed for | Notes |
 |---|---|---|
@@ -9,6 +10,9 @@ They do **not** include the local rename to `sd.agents`.
 | `manifest.json.patch` | Settings keys used by the panel UI | Only if you take `Panel.qml.patch`. |
 | `Main.qml.patch` | Nothing functional | One local comment. Drop it. |
 
-Stock policy is that adding an agent is adding a collector plus optional `assets/<id>.svg`. The panel is supposed to stay a display. The TUI scrape controls fight that a bit, so they are the second, more opinionated commit — not the minimum PR.
+Stock policy is that adding an agent is adding a collector plus optional
+`assets/<id>.svg`. The panel is supposed to stay a display. The extra
+controls fight that a bit, so they are a second, more opinionated commit —
+not the minimum PR.
 
-The live clone at `~/.config/omarchy/plugins/sd.agents` also renamed the plugin id. That rename is **not** in these patches and should not go upstream.
+If the plugin and these patches drift, trust `plugin/sd.agents/`.

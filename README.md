@@ -1,25 +1,42 @@
 # omarchy-agents-grok
 
-Grok support for Omarchy's menubar **Agents** panel, pulled out of the
-`sd.agents` clone so it can become a PR.
+Grok support for Omarchy's menubar **Agents** panel.
 
-Stock Omarchy already treats a new agent as a collector that prints one JSON
-record. The panel watches `~/.local/state/omarchy/agents/usage/` and draws
-whatever appears there. Claude, Codex, and Fireworks ship; Grok did not.
+This is the only source tree for that work. Stock Omarchy already treats a
+new agent as a collector that prints one JSON record. The panel watches
+`~/.local/state/omarchy/agents/usage/` and draws whatever appears there.
+Claude, Codex, and Fireworks ship; Grok did not.
 
-## What this is
+Do not copy this into `Projects/omarchy` until you are opening a PR. Do not
+keep a second clone under `Projects/plugins` or `omarchy-dotfiles`.
+
+## Layout
 
 | Path | What it is |
 |---|---|
-| `bin/omarchy-agent-usage-grok` | Collector. Scans `~/.grok/sessions/**/updates.jsonl` and optionally scrapes `/usage` from a throwaway TUI. |
-| `assets/grok.svg`, `assets/grok-light.svg` | Marks for the panel hero. |
-| `assets/grok.txt` | Braille mark used by the local panel when the SVG is too faint. |
-| `patches/` | Grok-only edits to stock `omarchy.agents`. |
+| `bin/omarchy-agent-usage-grok` | Collector. Session tokens from `~/.grok/sessions`; weekly SuperGrok credits from the CLI billing endpoint, falling back to `~/.grok/logs/unified.jsonl`. |
+| `plugin/sd.agents/` | Local clone of stock `omarchy.agents` with Grok marks and a manual/auto weekly-limit control. |
+| `assets/` | Grok SVG marks (and a braille fallback) for an upstream PR. |
+| `patches/` | Grok-only delta vs stock `omarchy.agents`. Optional for a first PR. |
 | `extras/` | Local timer, path unit, and login hook. Not first-party Omarchy. |
-| `tests/` | Parser, token split, and session-scan checks. |
+| `tests/` | Token split, session scan, credits stub, and record-contract checks. |
 
-The live clone at `~/.config/omarchy/plugins/sd.agents` is **not** copied here.
-That tree is almost all stock plugin plus the patches in `patches/`.
+## This machine
+
+```bash
+make test
+make install-user
+systemctl --user enable --now omarchy-agent-usage-grok.timer omarchy-agent-usage-grok.path
+```
+
+That installs the collector to `~/.local/lib/omarchy/`, symlinks the plugin
+to `~/.config/omarchy/plugins/sd.agents` (on this machine that directory is
+`~/Projects/plugins`), and installs the user units. Refresh a record with:
+
+```bash
+omarchy-agent-usage-grok --write
+omarchy-agent-usage-grok --force --write
+```
 
 ## Smallest Omarchy PR
 
@@ -32,54 +49,7 @@ That tree is almost all stock plugin plus the patches in `patches/`.
 4. A row in `shell/plugins/agents/README.md`
 
 No plugin rename. No panel controls. The stock widget will show a Grok tab
-as soon as the collector writes `grok.json`.
-
-Weekly SuperGrok limits have no public API, so this collector opens a
-headless `tmux` Grok, sends `/usage`, and parses the modal. `--limits-only`
-(the flag the stock updater already passes) refreshes that meter when the
-cache is stale. That is the part to call out in the PR: it works, and it is
-also a screen scrape.
-
-## Optional second change
-
-`patches/Panel.qml.patch` adds a Grok-only footer: **Update weekly limit**,
-an Auto toggle, and the braille mark. Stock policy is that the panel is
-strictly a display, so keep this out of the first PR unless reviewers want
-it.
-
-Do not send the local rename to `sd.agents` / "My Agents".
-
-## Local machine (already installed)
-
-The collector this desktop runs is `~/.local/lib/omarchy/omarchy-agent-usage-grok`.
-After edits here:
-
-```bash
-make test
-make install-user
-```
-
-That installs the collector and the user units. It does not replace
-`sd.agents`. Refresh a record with:
-
-```bash
-omarchy-agent-usage-grok --write
-omarchy-agent-usage-grok --force --scrape-tui --write
-```
-
-## Opening the PR
-
-Omarchy lives at https://github.com/basecamp/omarchy. Develop against a
-clone, not `/usr/share/omarchy`:
-
-```bash
-gh repo fork basecamp/omarchy --clone
-cd omarchy
-cp ../omarchy-agents-grok/bin/omarchy-agent-usage-grok bin/
-cp ../omarchy-agents-grok/assets/grok.svg ../omarchy-agents-grok/assets/grok-light.svg \
-  shell/plugins/agents/assets/
-```
-
-Then add the README table row, run `./test/all`, and open the PR.
+as soon as the collector writes `grok.json`. Keep `plugin/sd.agents` and
+`extras/` out of that PR.
 
 Suggested first-PR title: **Add a Grok collector to the Agents panel**.

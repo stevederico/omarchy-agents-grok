@@ -7,8 +7,8 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "omarchy.agents"
-  ipcTarget: "omarchy.agents"
+  moduleName: "sd.agents"
+  ipcTarget: "sd.agents"
   manageIpc: false
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -22,7 +22,8 @@ Panel {
   // The selection follows the provider, not the slot it happens to sit in: a
   // provider whose first scan lands while the panel is open would otherwise
   // shift the list underneath you and swap out what you were reading.
-  property string selectedProviderId: ""
+  // Prefer Grok when the panel opens; fall back to the first ready provider.
+  property string selectedProviderId: "grok"
   readonly property int providerIndex: {
     for (var i = 0; i < providers.length; i++)
       if (providers[i].providerId === selectedProviderId) return i

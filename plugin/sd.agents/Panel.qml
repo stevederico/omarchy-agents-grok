@@ -528,13 +528,18 @@ Panel {
                 id: heroMark
                 readonly property bool grok: !!root.provider && root.provider.providerId === "grok"
                 readonly property bool overall: !!root.provider && root.provider.providerId === "overall"
+                readonly property real grokScale: grokAscii.implicitHeight > 0
+                  ? Style.font.display / grokAscii.implicitHeight
+                  : 1
                 property var candidates: root.iconCandidatesForProvider(root.provider, root.surface)
                 property string candidatesKey: candidates.join("\n")
                 property int candidateIndex: 0
                 onCandidatesKeyChanged: candidateIndex = 0
 
-                implicitWidth: grok ? grokAscii.implicitWidth : Style.font.display
-                implicitHeight: grok ? grokAscii.implicitHeight : Style.font.display
+                // Same height as the SVG marks. The braille G is wider than it
+                // is tall, so the box follows that width after the scale.
+                implicitWidth: grok ? grokAscii.implicitWidth * grokScale : Style.font.display
+                implicitHeight: Style.font.display
                 width: implicitWidth
                 height: implicitHeight
 
@@ -547,6 +552,10 @@ Panel {
                   font.pixelSize: Style.font.caption
                   lineHeight: 1.0
                   lineHeightMode: Text.ProportionalHeight
+                  x: 0
+                  y: (parent.height - implicitHeight * heroMark.grokScale) / 2
+                  transformOrigin: Item.TopLeft
+                  scale: heroMark.grokScale
                 }
 
                 Text {

@@ -1,3 +1,7 @@
+0.7.0
+
+  Match Grok mark height
+
 0.6.0
 
   Move Overall last

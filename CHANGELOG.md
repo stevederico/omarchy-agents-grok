@@ -1,3 +1,7 @@
+0.9.1
+
+  Restore Quickshell import
+
 0.9.0
 
   Drop Grok scrape controls

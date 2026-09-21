@@ -1,3 +1,7 @@
+0.9.0
+
+  Drop Grok scrape controls
+
 0.8.0
 
   Estimate period token pool

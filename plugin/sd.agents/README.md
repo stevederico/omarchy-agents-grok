@@ -35,8 +35,6 @@ watches the records (and handles the optional cross-device aggregation);
   its prompt and session count when that agent counts prompts.
 - **Tokens by model** — tokens per model with the bar behind each row scaled
   to the heaviest model. Hover for the input / output / cache split.
-- **Grok weekly limit** — on the Grok chip, Auto update checks on a timer, or
-  press Update / `u` to scrape once.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
@@ -109,9 +107,8 @@ only adds the meter and the spent-of-funded line under the real figure.
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
-  `u` scrapes the Grok weekly limit, Tab moves to the neighboring bar panel,
-  Esc closes.
-- IPC: `omarchy-shell sd.agents <open|close|toggle|refresh|next|scrapeLimits>`.
+  Tab moves to the neighboring bar panel, Esc closes.
+- IPC: `omarchy-shell sd.agents <open|close|toggle|refresh|next>`.
 
 ## Settings
 
@@ -122,8 +119,6 @@ top-level keys can be set with
 | Key | Default | What it does |
 |---|---|---|
 | `refreshIntervalSec` | `900` | How often the usage records regenerate |
-| `grokLimitsMode` | `"Manual"` | `"Auto"` scrapes the Grok weekly limit on a timer |
-| `grokLimitsIntervalSec` | `900` | Auto check interval. Also offers 30 min, 1 hour, and 2 hours in the panel |
 | `syncMode` | `"Off"` | `"On"` writes this machine's snapshot and merges the others |
 | `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
 | `syncFileName` | `<hostname>.json` | This machine's snapshot file |

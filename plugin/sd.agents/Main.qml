@@ -3,7 +3,6 @@ import Quickshell
 import Quickshell.Io
 
 // The display side of agent usage. All extraction lives behind
-// (sd.agents: ad-hoc Grok /usage scrape lives in Panel.qml)
 // omarchy-agent-usage-update, which writes one JSON record per agent into
 // the usage directory; this file only discovers those records, watches them
 // for changes, and optionally merges snapshots synced from other machines.

@@ -35,8 +35,6 @@
         }
       },
       "refreshIntervalSec": 900,
-      "grokLimitsMode": "Manual",
-      "grokLimitsIntervalSec": 900,
       "syncMode": "Off",
       "syncDir": "",
       "syncFileName": "",
@@ -51,24 +49,6 @@
         "max": 3600,
         "step": 30,
         "defaultValue": 900
-      },
-      {
-        "key": "grokLimitsMode",
-        "type": "enum",
-        "label": "Grok weekly limit updates",
-        "options": ["Manual", "Auto"],
-        "defaultValue": "Manual",
-        "description": "Auto opens a throwaway Grok and reads /usage on a timer. Manual only updates when you press the button."
-      },
-      {
-        "key": "grokLimitsIntervalSec",
-        "type": "integer",
-        "label": "Grok auto-check interval (seconds)",
-        "min": 900,
-        "max": 7200,
-        "step": 900,
-        "defaultValue": 900,
-        "description": "How often Auto mode scrapes the Grok weekly limit. 900 = 15 minutes."
       },
       {
         "key": "syncMode",

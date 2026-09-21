@@ -15,7 +15,7 @@ keep a second clone under `Projects/plugins` or `omarchy-dotfiles`.
 | Path | What it is |
 |---|---|
 | `bin/omarchy-agent-usage-grok` | Collector. Session tokens from `~/.grok/sessions`; weekly SuperGrok credits from the CLI billing endpoint, falling back to `~/.grok/logs/unified.jsonl`. |
-| `plugin/sd.agents/` | Live **My Agents** panel (`sd.agents`). Grok is the first chip and the tab the pane opens on. **Overall** sums tokens across every agent that already has a chip. Days under 10M are hidden, and the day header shows the average of the days that remain. A span longer than a week uses dates (`9/11`) instead of repeating weekday names. Grok keeps the braille mark and the manual/auto weekly-limit control. |
+| `plugin/sd.agents/` | Live **My Agents** panel (`sd.agents`). Grok is the first chip and the tab the pane opens on. **Overall** sums tokens across every agent that already has a chip. Days under 10M are hidden, and the day header shows the average of the days that remain. A span longer than a week uses dates (`9/11`) instead of repeating weekday names. The Grok weekly meter comes from the billing endpoint on the collector timer, not a manual scrape. |
 | `assets/` | Grok SVG marks (and a braille fallback) for an upstream PR. |
 | `patches/` | Grok-only delta vs stock `omarchy.agents`. Optional for a first PR. |
 | `extras/` | Local timer, path unit, and login hook. Not first-party Omarchy. |

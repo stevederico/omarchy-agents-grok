@@ -537,7 +537,6 @@ def main() -> int:
   parser.add_argument("--force", action="store_true", help="rescan sessions, ignoring the cache")
   parser.add_argument("--limits-only", action="store_true", help="reuse a recent scan; only the credits probe must be fresh")
   parser.add_argument("--write", action="store_true", help="write grok.json into the agents usage dir")
-  parser.add_argument("--scrape-tui", action="store_true", help=argparse.SUPPRESS)
   args = parser.parse_args()
 
   home = grok_home()

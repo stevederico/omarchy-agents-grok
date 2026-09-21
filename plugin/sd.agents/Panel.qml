@@ -1,7 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import Quickshell
-import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -56,49 +54,8 @@ Panel {
     selectedProviderId = providers[wrapped].providerId
   }
 
-  property bool scrapingLimits: scrapeProcess.running
-  property string scrapeStatus: ""
   // Official Grok logomark via `omarchy transcode ascii` (same as About → Set From Image).
   readonly property string grokAsciiMark: "      ⣀⣀⡀   ⣠\n   ⣠⣾⠿⠛⠛⠛⠛⢀⣴⠃\n  ⣼⡟⠁   ⢀⡴⠻⣿⡀\n  ⣿⡇   ⠔⠁  ⣿⡇\n  ⢹⣷     ⢀⣴⡿\n ⢀⠞⠁⠠⢶⣶⣶⣶⠿⠋\n ⠁"
-
-  readonly property var grokIntervalOptions: [
-    { label: "15 min", sec: 900 },
-    { label: "30 min", sec: 1800 },
-    { label: "1 hour", sec: 3600 },
-    { label: "2 hours", sec: 7200 }
-  ]
-  readonly property bool grokLimitsAuto: String(setting("grokLimitsMode", "Manual")).toLowerCase() === "auto"
-  readonly property int grokLimitsIntervalSec: {
-    var n = Number(setting("grokLimitsIntervalSec", 900))
-    return isFinite(n) && n >= 60 ? Math.round(n) : 900
-  }
-
-  function grokIntervalLabel(sec) {
-    var n = Number(sec)
-    if (!(n > 0)) return "15 minutes"
-    if (n < 60) return n + " seconds"
-    if (n % 3600 === 0) return (n / 3600) + (n === 3600 ? " hour" : " hours")
-    if (n % 60 === 0) return (n / 60) + " minutes"
-    return n + " seconds"
-  }
-
-  function persistSettings(values) {
-    var entry = { id: root.moduleName }
-    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
-    for (var key in values) entry[key] = values[key]
-    root.settings = entry
-    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
-      root.bar.shell.updateEntryInline(root.moduleName, entry)
-  }
-
-  function setGrokLimitsAuto(on) {
-    persistSettings({ grokLimitsMode: on ? "Auto" : "Manual" })
-    if (on) root.scrapeGrokLimits()
-  }
-
-  function setGrokLimitsInterval(sec) {
-    persistSettings({ grokLimitsIntervalSec: Number(sec) })
-  }
 
   function refreshNow() {
     usage.refreshAll(true)
@@ -107,46 +64,6 @@ Panel {
   function launchAgent() {
     if (root.bar) root.bar.run("omarchy-agent --pick")
     root.close()
-  }
-
-  function scrapeGrokLimits() {
-    if (scrapeProcess.running) return
-    scrapeStatus = "Updating weekly limit…"
-    scrapeProcess.running = true
-  }
-
-  Process {
-    id: scrapeProcess
-    running: false
-    command: [
-      (Quickshell.env("HOME") || "") + "/.local/lib/omarchy/omarchy-agent-usage-grok",
-      "--force",
-      "--write"
-    ]
-    onExited: {
-      usage.rescanAgents()
-      scrapeStatus = exitCode === 0 ? "Weekly limit updated" : "Could not update weekly limit"
-      scrapeClear.restart()
-    }
-    stderr: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: if (text.trim() !== "") console.warn("agents", text.trim())
-    }
-  }
-
-  Timer {
-    id: scrapeClear
-    interval: 4000
-    repeat: false
-    onTriggered: if (!scrapeProcess.running) root.scrapeStatus = ""
-  }
-
-  Timer {
-    id: grokAutoTimer
-    interval: Math.max(60, root.grokLimitsIntervalSec) * 1000
-    running: root.grokLimitsAuto
-    repeat: true
-    onTriggered: root.scrapeGrokLimits()
   }
 
   // ---------------------------------------------------------------- limits
@@ -510,7 +427,6 @@ Panel {
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
     function next(): string { root.selectProvider(root.providerIndex + 1); return "ok" }
-    function scrapeLimits(): string { root.scrapeGrokLimits(); return "ok" }
   }
 
   BarIconButton {
@@ -556,7 +472,6 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        if (t === "u" || t === "U") root.scrapeGrokLimits()
       }
 
       Flickable {
@@ -919,87 +834,6 @@ Panel {
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
-          }
-
-          PanelSeparator {
-            visible: grokLimitsControls.visible
-            foreground: root.foreground
-          }
-
-          Column {
-            id: grokLimitsControls
-            visible: !!root.provider && root.provider.providerId === "grok"
-            width: parent.width
-            spacing: Style.space(10)
-
-            Toggle {
-              width: parent.width
-              label: "Auto update"
-              description: root.grokLimitsAuto
-                ? "Checks every " + root.grokIntervalLabel(root.grokLimitsIntervalSec)
-                : "Only when you press Update"
-              checked: root.grokLimitsAuto
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              onClicked: root.setGrokLimitsAuto(!root.grokLimitsAuto)
-            }
-
-            Column {
-              visible: root.grokLimitsAuto
-              width: parent.width
-              spacing: Style.spacing.sm
-
-              Text {
-                width: parent.width
-                text: "Check every"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-
-              Row {
-                width: parent.width
-                spacing: Style.spacing.sm
-
-                Repeater {
-                  model: root.grokIntervalOptions
-
-                  Button {
-                    required property var modelData
-                    text: modelData.label
-                    selected: Number(modelData.sec) === root.grokLimitsIntervalSec
-                    bordered: true
-                    foreground: root.foreground
-                    fontFamily: root.fontFamily
-                    fontSize: Style.font.caption
-                    verticalPadding: Style.spacing.controlPaddingY
-                    onClicked: root.setGrokLimitsInterval(modelData.sec)
-                  }
-                }
-              }
-            }
-
-            Button {
-              width: parent.width
-              text: scrapeProcess.running ? "Updating weekly limit…" : "Update weekly limit"
-              enabled: !scrapeProcess.running
-              bordered: true
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              fontSize: Style.font.bodySmall
-              verticalPadding: Style.spacing.controlPaddingY
-              onClicked: root.scrapeGrokLimits()
-            }
-
-            Text {
-              visible: root.scrapeStatus !== ""
-              width: parent.width
-              text: root.scrapeStatus
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              horizontalAlignment: Text.AlignHCenter
-            }
           }
         }
       }

@@ -1,3 +1,7 @@
+0.9.2
+
+  Import Quickshell.Io for IpcHandler
+
 0.9.1
 
   Restore Quickshell import

@@ -1,3 +1,7 @@
+0.8.0
+
+  Estimate period token pool
+
 0.7.0
 
   Match Grok mark height

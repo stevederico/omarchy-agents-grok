@@ -190,18 +190,80 @@ Panel {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: Number(percent),
-      resetAt: String(resetAt || "")
+      resetAt: String(resetAt || ""),
+      estimate: ""
     }
+  }
+
+  function localDateKey(ms) {
+    var d = new Date(ms)
+    if (isNaN(d.getTime())) return ""
+    return d.getFullYear()
+      + "-" + String(d.getMonth() + 1).padStart(2, "0")
+      + "-" + String(d.getDate()).padStart(2, "0")
+  }
+
+  // Daily buckets cannot see a 5-hour session. A week or a billing month can.
+  function windowSpanFor(entry) {
+    var label = String((entry && (entry.title || entry.label)) || "")
+    var span = windowSpanMs(label)
+    if (span >= 24 * 3600 * 1000) return span
+    if (span > 0) return 0
+    var reset = new Date(String(entry && entry.resetsAt || "")).getTime()
+    if (!isFinite(reset)) return 0
+    if (reset - root.nowMs > 8 * 24 * 3600 * 1000) return 30 * 24 * 3600 * 1000
+    return 0
+  }
+
+  function tokensInWindow(p, startMs) {
+    var key = localDateKey(startMs)
+    if (key === "") return -1
+    var days = p && p.recentDays ? p.recentDays : []
+    var sum = 0
+    var any = false
+    for (var i = 0; i < days.length; i++) {
+      var day = days[i] || {}
+      var date = String(day.date || "")
+      if (date !== "" && date >= key) {
+        sum += Number(day.messageCount || 0)
+        any = true
+      }
+    }
+    return any ? sum : -1
+  }
+
+  // Spent in the open window divided by the fraction used. One estimate per
+  // agent, on the first week or month meter. Overall mixes pools, so it skips.
+  function estimateCap(p, entry) {
+    if (!p || p.providerId === "overall") return ""
+    var span = windowSpanFor(entry)
+    if (span < 24 * 3600 * 1000) return ""
+    var percent = Number(entry.percent)
+    if (!(percent >= 0.02)) return ""
+    var reset = new Date(String(entry.resetsAt || "")).getTime()
+    if (!isFinite(reset)) return ""
+    var spent = tokensInWindow(p, reset - span)
+    if (!(spent > 0)) return ""
+    var cap = spent / Math.min(percent, 1)
+    var suffix = span >= 20 * 24 * 3600 * 1000 ? "/month" : "/week"
+    return "≈ " + usage.formatTokenCount(cap) + suffix
   }
 
   function limitWindows(p) {
     if (!p) return []
     var out = []
     var list = p.limits || []
+    var estimated = false
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      if (!(percent >= 0)) continue
+      var window = limitWindow(entry.label, percent, entry.resetsAt, entry.title)
+      if (!estimated) {
+        window.estimate = estimateCap(p, entry)
+        if (window.estimate !== "") estimated = true
+      }
+      out.push(window)
     }
     return out
   }
@@ -996,7 +1058,10 @@ Panel {
       width: parent.width
       text: {
         var remainingMs = root.resetMsFor(limitRow.window)
-        return remainingMs > 0 ? "Resets in " + root.formatDuration(remainingMs) : ""
+        var reset = remainingMs > 0 ? "Resets in " + root.formatDuration(remainingMs) : ""
+        var estimate = limitRow.window ? String(limitRow.window.estimate || "") : ""
+        if (reset !== "" && estimate !== "") return reset + " · " + estimate
+        return reset !== "" ? reset : estimate
       }
       color: root.dim
       font.family: root.fontFamily

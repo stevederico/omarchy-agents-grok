@@ -44,7 +44,11 @@ Item {
       var name = lines[i].trim()
       if (name.slice(-5) === ".json") ids.push(name.slice(0, -5))
     }
-    ids.sort()
+    ids.sort(function(a, b) {
+      if (a === "grok") return -1
+      if (b === "grok") return 1
+      return a < b ? -1 : (a > b ? 1 : 0)
+    })
     // Same list, same objects: reassigning the model would tear down every
     // FileView just to build identical ones.
     if (JSON.stringify(ids) !== JSON.stringify(agentIds)) agentIds = ids

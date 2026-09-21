@@ -111,6 +111,8 @@ only adds the meter and the spent-of-funded line under the real figure.
 ## Interactions
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
+  The icon turns urgent at 90% of the selected agent's binding window.
+  Cursor's Other Models meter is ignored for that.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
   Tab moves to the neighboring bar panel, Esc closes.
 - IPC: `omarchy-shell sd.agents <open|close|show|hide|toggle|refresh|next>`.

@@ -111,6 +111,12 @@ Panel {
     }
   }
 
+  // Cursor's Other Models pool is optional. Grok 4.6 Fast still runs on
+  // Cursor Models, so a full Other Models meter must not light the bar icon.
+  function limitIsOtherModels(w) {
+    return String((w && w.title) || "").toLowerCase().indexOf("other models") >= 0
+  }
+
   function localDateKey(ms) {
     var d = new Date(ms)
     if (isNaN(d.getTime())) return ""
@@ -190,6 +196,7 @@ Panel {
     var windows = limitWindows(p)
     var best = null
     for (var i = 0; i < windows.length; i++) {
+      if (limitIsOtherModels(windows[i])) continue
       if (!best || windows[i].percent > best.percent) best = windows[i]
     }
     return best

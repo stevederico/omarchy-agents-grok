@@ -344,7 +344,8 @@ Panel {
       })
     }
     rows.sort(function(a, b) { return b.total - a.total })
-    return rows.slice(0, 4)
+    var cap = p && p.providerId === "overall" ? 8 : 4
+    return rows.slice(0, cap)
   }
 
   function modelTooltip(row) {
@@ -382,7 +383,7 @@ Panel {
   // from this panel: assets/<id>.svg if it ships one, the module's bar glyph
   // if it doesn't.
   function iconCandidatesForProvider(p, surfaceColor) {
-    if (!p) return []
+    if (!p || p.providerId === "overall") return []
     var candidates = []
     if (colorLuminance(surfaceColor || Color.background) >= 0.5)
       candidates.push(Qt.resolvedUrl("assets/" + p.providerId + "-light.svg"))
@@ -508,6 +509,7 @@ Panel {
               Item {
                 id: heroMark
                 readonly property bool grok: !!root.provider && root.provider.providerId === "grok"
+                readonly property bool overall: !!root.provider && root.provider.providerId === "overall"
                 property var candidates: root.iconCandidatesForProvider(root.provider, root.surface)
                 property string candidatesKey: candidates.join("\n")
                 property int candidateIndex: 0
@@ -529,11 +531,20 @@ Panel {
                   lineHeightMode: Text.ProportionalHeight
                 }
 
+                Text {
+                  visible: heroMark.overall
+                  anchors.centerIn: parent
+                  text: "Σ"
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.display
+                }
+
                 Image {
                   id: heroMarkImage
-                  visible: !heroMark.grok
+                  visible: !heroMark.grok && !heroMark.overall
                   anchors.fill: parent
-                  source: !heroMark.grok && heroMark.candidateIndex < heroMark.candidates.length ? heroMark.candidates[heroMark.candidateIndex] : ""
+                  source: !heroMark.grok && !heroMark.overall && heroMark.candidateIndex < heroMark.candidates.length ? heroMark.candidates[heroMark.candidateIndex] : ""
                   sourceSize.width: Style.font.display * 2
                   sourceSize.height: Style.font.display * 2
                   fillMode: Image.PreserveAspectFit
@@ -543,7 +554,7 @@ Panel {
 
                 Text {
                   anchors.centerIn: parent
-                  visible: !heroMark.grok && heroMarkImage.status !== Image.Ready
+                  visible: !heroMark.grok && !heroMark.overall && heroMarkImage.status !== Image.Ready
                   text: button.text
                   color: root.foreground
                   font.family: root.fontFamily

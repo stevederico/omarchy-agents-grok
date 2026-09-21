@@ -211,7 +211,119 @@ Item {
       var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
+    if (result.length > 1) {
+      var overall = overallProvider(result)
+      var insertAt = 0
+      for (var g = 0; g < result.length; g++) {
+        if (result[g].providerId === "grok") {
+          insertAt = g + 1
+          break
+        }
+      }
+      result.splice(insertAt, 0, overall)
+    }
     return result
+  }
+
+  // One tab for every agent that is already showing. Tokens add. The same
+  // calendar day on two agents counts once in the day chart and once per
+  // agent in the model list. Plan meters stay labeled, not averaged.
+  function overallProvider(list) {
+    var byDate = {}
+    var modelUsage = {}
+    var todayByModel = {}
+    var limits = []
+    var active = {}
+    var todayPrompts = 0
+    var todaySessions = 0
+    var todayTotal = 0
+    var totalPrompts = 0
+    var totalSessions = 0
+    var promptStats = true
+    var localStats = false
+
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i]
+      if (p.hasPromptStats === false) promptStats = false
+      if (p.hasLocalStats !== false) localStats = true
+      todayPrompts += numberValue(p.todayPrompts)
+      todaySessions += numberValue(p.todaySessions)
+      todayTotal += numberValue(p.todayTotalTokens)
+      totalPrompts += numberValue(p.totalPrompts)
+      totalSessions += numberValue(p.totalSessions)
+      combineObjectNumbers(true, todayByModel, p.todayTokensByModel || {})
+
+      var usageByModel = p.modelUsage || {}
+      for (var modelId in usageByModel) {
+        var bucket = modelUsage[modelId]
+        if (!bucket) bucket = modelUsage[modelId] = emptyTokenBucket()
+        combineObjectNumbers(true, bucket, usageByModel[modelId] || {})
+      }
+
+      var days = p.recentDays || []
+      for (var d = 0; d < days.length; d++) {
+        var day = days[d] || {}
+        var date = String(day.date || "")
+        if (date === "") continue
+        byDate[date] = numberValue(byDate[date]) + numberValue(day.messageCount)
+      }
+
+      var dates = p.activeDates || []
+      for (var a = 0; a < dates.length; a++) active[String(dates[a])] = true
+
+      var agentLimits = p.limits || []
+      for (var l = 0; l < agentLimits.length; l++) {
+        var entry = agentLimits[l] || {}
+        var percent = Number(entry.percent)
+        if (!(percent >= 0)) continue
+        var title = String(entry.title || entry.label || "Limit")
+        limits.push({
+          label: String(p.providerName) + " " + title,
+          title: String(p.providerName) + " · " + title,
+          percent: percent,
+          resetsAt: String(entry.resetsAt || "")
+        })
+      }
+    }
+
+    var dateKeys = Object.keys(byDate).sort()
+    var recentDays = []
+    if (dateKeys.length > 0) {
+      var start = new Date(dateKeys[0] + "T00:00:00")
+      var end = new Date(dateKeys[dateKeys.length - 1] + "T00:00:00")
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        for (var cursor = new Date(start.getTime()); cursor.getTime() <= end.getTime(); cursor.setDate(cursor.getDate() + 1)) {
+          var key = dateString(cursor)
+          recentDays.push({ date: key, messageCount: numberValue(byDate[key]) })
+        }
+      }
+    }
+
+    return {
+      providerId: "overall",
+      providerName: "Overall",
+      ready: true,
+      usageStatusText: "",
+      authHelpText: "",
+      limits: limits,
+      tierLabel: list.length + (list.length === 1 ? " agent" : " agents"),
+      balance: null,
+      todayPrompts: todayPrompts,
+      todaySessions: todaySessions,
+      todayTotalTokens: todayTotal,
+      todayTokensByModel: todayByModel,
+      recentDays: recentDays,
+      totalPrompts: totalPrompts,
+      totalSessions: totalSessions,
+      activeDays: Object.keys(active).length,
+      activeDates: Object.keys(active).sort(),
+      modelUsage: modelUsage,
+      hasLocalStats: localStats,
+      hasPromptStats: promptStats,
+      syncEnabled: false,
+      syncDeviceCount: 0,
+      syncUpdatedAt: ""
+    }
   }
 
   function providerEnabled(id) {
@@ -270,6 +382,9 @@ Item {
       totalPrompts: synced ? numberValue(stats.totalPrompts) : numberValue(record.totalPrompts),
       totalSessions: synced ? numberValue(stats.totalSessions) : numberValue(record.totalSessions),
       activeDays: synced ? numberValue(stats.activeDays) : numberValue(record.activeDays),
+      activeDates: synced
+        ? (Array.isArray(stats.activeDates) ? stats.activeDates : [])
+        : (Array.isArray(record.activeDates) ? record.activeDates : []),
       modelUsage: synced ? (stats.modelUsage || ({})) : (record.modelUsage || ({})),
       hasLocalStats: synced ? (stats.hasLocalStats !== false) : (record.hasLocalStats !== false),
       hasPromptStats: synced ? (stats.hasPromptStats !== false) : (record.hasPromptStats !== false),

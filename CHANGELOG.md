@@ -1,3 +1,7 @@
+0.6.0
+
+  Move Overall last
+
 0.5.0
 
   Document the live panel

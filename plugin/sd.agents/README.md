@@ -14,7 +14,7 @@ watches the records (and handles the optional cross-device aggregation);
   Auth and endpoint problems replace the plan line and repeat in a card.
   Grok uses the braille mark. Overall uses Σ.
 - **Subscription switch** — one chip per enabled agent, plus **Overall** when
-  at least two agents have data. Order is Grok, Overall, then the rest A–Z.
+  at least two agents have data. Order is Grok, then the rest A–Z, then Overall.
   The pane opens on Grok. Chips appear only when more than one agent is enabled.
   `h`/`l` or click.
 - **Overall** — tokens by day and by model are summed. Each plan limit stays

@@ -6,7 +6,7 @@ Grok-only edits on top of stock `omarchy.agents`. The live plugin in
 
 | Patch | Needed for | Notes |
 |---|---|---|
-| `Main.qml.patch` | Nothing in the patch itself | The file on disk is one local comment. The live `Main.qml` is ahead of it: Grok sorts first, and Overall is inserted after Grok. Do not apply this patch as the current behavior. |
+| `Main.qml.patch` | Nothing in the patch itself | The file on disk is one local comment. The live `Main.qml` is ahead of it: Grok sorts first, and Overall is appended last. Do not apply this patch as the current behavior. |
 | `Panel.qml.patch` | Weekly-limit button / Auto toggle / braille mark | Behind the live panel. Missing Overall, the 10M day floor, the active-day average, and month dates. |
 | `manifest.json.patch` | Settings keys used by the panel UI | Only if you take `Panel.qml.patch`. |
 

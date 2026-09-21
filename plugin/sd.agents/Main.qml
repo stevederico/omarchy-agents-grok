@@ -211,17 +211,7 @@ Item {
       var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
-    if (result.length > 1) {
-      var overall = overallProvider(result)
-      var insertAt = 0
-      for (var g = 0; g < result.length; g++) {
-        if (result[g].providerId === "grok") {
-          insertAt = g + 1
-          break
-        }
-      }
-      result.splice(insertAt, 0, overall)
-    }
+    if (result.length > 1) result.push(overallProvider(result))
     return result
   }
 

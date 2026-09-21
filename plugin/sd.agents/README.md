@@ -12,20 +12,25 @@ watches the records (and handles the optional cross-device aggregation);
 
 - **Hero** — the mark, the tool, and the plan it runs on ("SuperGrok Heavy", "Ultra").
   Auth and endpoint problems replace the plan line and repeat in a card.
-  Grok uses the braille mark. Overall uses Σ.
+  Grok draws `assets/grok.svg` (white) or `assets/grok-light.svg` on a light
+  bar, at 1.4× the other marks. Overall uses Σ. `assets/grok.txt` is unused.
 - **Subscription switch** — one chip per enabled agent, plus **Overall** when
   at least two agents have data. Order is Grok, then the rest A–Z, then Overall.
   The pane opens on Grok. Chips appear only when more than one agent is enabled.
   `h`/`l` or click.
-- **Overall** — tokens by day and by model are summed. Each plan limit stays
-  its own meter, titled with the agent name. Percents are not averaged.
-  The model list shows eight rows here and four on a single agent.
+- **Overall** — tokens by day and by model are summed. Missing days inside
+  the span are filled with zero, then the 10M floor drops them. Each plan
+  limit stays its own meter, titled `Agent · limit`. Percents are not
+  averaged. The model list shows eight rows here and four on a single agent.
+  If any agent lacks prompt stats, Overall hides prompt counts too.
 - **Limits** — the percentage of each allowance used, a matching meter, and
   the time until the window resets. The first week or month meter also shows
   an estimated pool, spent in that window divided by the fraction used
-  (`≈ 868M/week`). Session windows are too short for daily token buckets, so
-  they stay a percent only. Overall does not estimate, because its tokens are
-  a mix of plans.
+  (`≈ 868M/week`). The estimate uses every recent day, not the 10M display
+  filter. A label with no week or month word counts as a month when reset is
+  more than 8 days out. Session windows are too short for daily token
+  buckets, so they stay a percent only. Overall does not estimate, because
+  its tokens are a mix of plans.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.
@@ -108,7 +113,9 @@ only adds the meter and the spent-of-funded line under the real figure.
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
   Tab moves to the neighboring bar panel, Esc closes.
-- IPC: `omarchy-shell sd.agents <open|close|toggle|refresh|next>`.
+- IPC: `omarchy-shell sd.agents <open|close|show|hide|toggle|refresh|next>`.
+  `show` and `hide` are `open` and `close`. `IpcHandler` comes from
+  `Quickshell.Io`.
 
 ## Settings
 
@@ -139,14 +146,16 @@ edit `shell.json` directly):
 omarchy bar set sd.agents providers '{
   "grok": { "enabled": true },
   "claude": { "enabled": true },
+  "cursor": { "enabled": true },
   "codex": { "enabled": false },
   "fireworks": { "enabled": true }
 }' --json
 ```
 
-`enabled` defaults to `true` for every discovered agent; set it to `false` to
-hide a subscription that is installed. Disabled agents are also skipped when
-the records regenerate.
+An agent with no `providers` entry stays enabled. Set `enabled` to `false`
+to hide one that is installed. Disabled agents are also skipped when the
+records regenerate. The manifest defaults list Claude, Codex, and Fireworks
+only. Grok and Cursor still show, because a missing entry means enabled.
 
 With `syncMode` on, every `*.json` snapshot in `syncDir` is merged, so today,
 the last 7 days, and the all-time totals cover every machine you code on —

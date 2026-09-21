@@ -1,27 +1,21 @@
+<div align="center">
+
 # omarchy-agents-grok
 
-Grok support for Omarchy's menubar **Agents** panel.
+### grok usage in the omarchy agents menubar
 
-This is the only source tree for that work. Stock Omarchy already treats a
-new agent as a collector that prints one JSON record. The panel watches
-`~/.local/state/omarchy/agents/usage/` and draws whatever appears there.
-Claude, Codex, and Fireworks ship; Grok did not.
+</div>
 
-Do not copy this into `Projects/omarchy` until you are opening a PR. Do not
-keep a second clone under `Projects/plugins` or `omarchy-dotfiles`.
+<br />
 
-## Layout
+Stock Omarchy draws an Agents panel from JSON records in
+`~/.local/state/omarchy/agents/usage/`. Claude, Codex, and Fireworks ship
+a collector. Grok does not. This repo is the Grok collector, the Grok marks,
+and the live `sd.agents` panel that shows them.
 
-| Path | What it is |
-|---|---|
-| `bin/omarchy-agent-usage-grok` | Collector. Session tokens from `~/.grok/sessions`; weekly SuperGrok credits from the CLI billing endpoint, falling back to `~/.grok/logs/unified.jsonl`. |
-| `plugin/sd.agents/` | Live **My Agents** panel (`sd.agents`). Grok is the first chip and the tab the pane opens on. **Overall** sums tokens across every agent that already has a chip. Days under 10M are hidden, and the day header shows the average of the days that remain. A span longer than a week uses dates (`9/11`) instead of repeating weekday names. The Grok weekly meter comes from the billing endpoint on the collector timer, not a manual scrape. |
-| `assets/` | Grok SVG marks (and a braille fallback) for an upstream PR. |
-| `patches/` | Grok-only delta vs stock `omarchy.agents`. Optional for a first PR. |
-| `extras/` | Local timer, path unit, and login hook. Not first-party Omarchy. |
-| `tests/` | Token split, session scan, credits stub, and record-contract checks. |
+<br />
 
-## This machine
+## 🚀 **Quick start**
 
 ```bash
 make test
@@ -29,29 +23,71 @@ make install-user
 systemctl --user enable --now omarchy-agent-usage-grok.timer omarchy-agent-usage-grok.path
 ```
 
-That installs the collector to `~/.local/lib/omarchy/`, symlinks
-`~/.config/omarchy/plugins/sd.agents` at this repo's `plugin/sd.agents`,
-and installs the user units. The shell watcher does not follow that
-symlink, so after a QML edit run `omarchy-shell shell rescanPlugins` or
-`omarchy-restart-shell`. Refresh a record with:
+`make install-user` copies the collector to `~/.local/lib/omarchy/`, links it
+onto `~/.local/bin`, symlinks `~/.config/omarchy/plugins/sd.agents` at
+`plugin/sd.agents`, and installs the user units.
+
+The shell does not follow that symlink. After a QML edit, restart the shell
+with `omarchy-restart-shell`. `omarchy-shell shell rescanPlugins` often keeps
+the previous component.
+
+Write a record by hand with:
 
 ```bash
 omarchy-agent-usage-grok --write
 omarchy-agent-usage-grok --force --write
 ```
 
-## Smallest Omarchy PR
+`--force` ignores the session-scan cache. `--limits-only` reuses a scan up to
+15 minutes old and still probes billing. `--write` stores `grok.json`. With
+no flag the command prints the record.
+
+<br />
+
+## ✨ **What's included**
+
+### **Collector**
+
+- **Session tokens** from `~/.grok/sessions` turn completions, last 7 days. `GROK_HOME` overrides that directory.
+- **Weekly credits** from `GET {base}/billing?format=credits`. The base is `GROK_CLI_CHAT_PROXY_BASE_URL` or `https://cli-chat-proxy.grok.com/v1`. That call does not send a prompt. If it fails, the collector uses the newest open reading in `~/.grok/logs/unified.jsonl`.
+- **User timer** every 2 minutes (`extras/systemd/`), plus a path unit on `~/.grok/active_sessions.json`. Both run `omarchy-agent-usage-grok --write`.
+- **Scan cache** of 20 seconds unless you pass `--force` or `--limits-only`.
+
+### **Panel**
+
+`plugin/sd.agents/` is **My Agents** (`sd.agents`), cloned from stock `omarchy.agents`. Details are in `plugin/sd.agents/README.md`.
+
+- **Grok first**, then the other agents A–Z, then **Overall** when at least two have data. The pane opens on Grok.
+- **Days under 10M** hidden. The day header is the average of the days that remain. A span longer than a week uses `M/D`.
+- **Pool estimate** on the first week or month meter (`≈ 868M/week`). Overall skips it.
+- **Grok mark** is `assets/grok.svg` (white) or `assets/grok-light.svg` on a light bar, drawn at 1.4× the other marks. `assets/grok.txt` is an unused braille transcription.
+- **Cursor** has marks here and no collector. A `cursor.json` from elsewhere still gets a chip.
+
+The panel's own refresh is `refreshIntervalSec` (default 900). That runs `omarchy-agent-usage-update` for every enabled agent. It is separate from the 2-minute Grok timer.
+
+### **Not for an upstream PR**
+
+- **`patches/`** is an old Grok-only delta. Trust `plugin/sd.agents/` when they disagree.
+- **`extras/`** is the local timer, path unit, and login hook.
+
+<br />
+
+## 🔀 **Upstream PR**
 
 `omarchy-agent-usage-update` runs every `omarchy-agent-usage-*` binary in
-`$OMARCHY_PATH/bin`. Adding Grok is:
+`$OMARCHY_PATH/bin`. The smallest Grok PR is the collector plus the two marks:
 
 1. `bin/omarchy-agent-usage-grok`
 2. `shell/plugins/agents/assets/grok.svg`
 3. `shell/plugins/agents/assets/grok-light.svg`
 4. A row in `shell/plugins/agents/README.md`
 
-No plugin rename. No panel controls. The stock widget will show a Grok tab
-as soon as the collector writes `grok.json`. Keep `plugin/sd.agents` and
-`extras/` out of that PR.
+Leave `plugin/sd.agents/` and `extras/` out. The stock widget shows a Grok tab
+once the collector writes `grok.json`. Do not copy this tree into an Omarchy
+checkout until you are opening that PR.
 
-Suggested first-PR title: **Add a Grok collector to the Agents panel**.
+<br />
+
+## 📄 **License**
+
+The plugin manifest declares MIT.

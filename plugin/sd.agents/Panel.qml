@@ -56,9 +56,6 @@ Panel {
     selectedProviderId = providers[wrapped].providerId
   }
 
-  // Official Grok logomark via `omarchy transcode ascii` (same as About → Set From Image).
-  readonly property string grokAsciiMark: "      ⣀⣀⡀   ⣠\n   ⣠⣾⠿⠛⠛⠛⠛⢀⣴⠃\n  ⣼⡟⠁   ⢀⡴⠻⣿⡀\n  ⣿⡇   ⠔⠁  ⣿⡇\n  ⢹⣷     ⢀⣴⡿\n ⢀⠞⠁⠠⢶⣶⣶⣶⠿⠋\n ⠁"
-
   function refreshNow() {
     usage.refreshAll(true)
   }
@@ -507,35 +504,16 @@ Panel {
                 id: heroMark
                 readonly property bool grok: !!root.provider && root.provider.providerId === "grok"
                 readonly property bool overall: !!root.provider && root.provider.providerId === "overall"
-                readonly property real grokScale: grokAscii.implicitHeight > 0
-                  ? Style.font.display / grokAscii.implicitHeight
-                  : 1
+                readonly property real markSize: Style.font.display * (grok ? 1.4 : 1)
                 property var candidates: root.iconCandidatesForProvider(root.provider, root.surface)
                 property string candidatesKey: candidates.join("\n")
                 property int candidateIndex: 0
                 onCandidatesKeyChanged: candidateIndex = 0
 
-                // Same height as the SVG marks. The braille G is wider than it
-                // is tall, so the box follows that width after the scale.
-                implicitWidth: grok ? grokAscii.implicitWidth * grokScale : Style.font.display
-                implicitHeight: Style.font.display
+                implicitWidth: markSize
+                implicitHeight: markSize
                 width: implicitWidth
                 height: implicitHeight
-
-                Text {
-                  id: grokAscii
-                  visible: heroMark.grok
-                  text: root.grokAsciiMark
-                  color: root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                  lineHeight: 1.0
-                  lineHeightMode: Text.ProportionalHeight
-                  x: 0
-                  y: (parent.height - implicitHeight * heroMark.grokScale) / 2
-                  transformOrigin: Item.TopLeft
-                  scale: heroMark.grokScale
-                }
 
                 Text {
                   visible: heroMark.overall
@@ -543,16 +521,16 @@ Panel {
                   text: "Σ"
                   color: root.foreground
                   font.family: root.fontFamily
-                  font.pixelSize: Style.font.display
+                  font.pixelSize: heroMark.markSize
                 }
 
                 Image {
                   id: heroMarkImage
-                  visible: !heroMark.grok && !heroMark.overall
+                  visible: !heroMark.overall
                   anchors.fill: parent
-                  source: !heroMark.grok && !heroMark.overall && heroMark.candidateIndex < heroMark.candidates.length ? heroMark.candidates[heroMark.candidateIndex] : ""
-                  sourceSize.width: Style.font.display * 2
-                  sourceSize.height: Style.font.display * 2
+                  source: !heroMark.overall && heroMark.candidateIndex < heroMark.candidates.length ? heroMark.candidates[heroMark.candidateIndex] : ""
+                  sourceSize.width: heroMark.markSize * 2
+                  sourceSize.height: heroMark.markSize * 2
                   fillMode: Image.PreserveAspectFit
                   onStatusChanged: if (status === Image.Error && heroMark.candidateIndex < heroMark.candidates.length)
                     Qt.callLater(function() { heroMark.candidateIndex++ })
@@ -560,11 +538,11 @@ Panel {
 
                 Text {
                   anchors.centerIn: parent
-                  visible: !heroMark.grok && !heroMark.overall && heroMarkImage.status !== Image.Ready
+                  visible: !heroMark.overall && heroMarkImage.status !== Image.Ready
                   text: button.text
                   color: root.foreground
                   font.family: root.fontFamily
-                  font.pixelSize: Style.font.display
+                  font.pixelSize: heroMark.markSize
                 }
               }
             }

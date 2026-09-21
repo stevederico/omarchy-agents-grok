@@ -1,3 +1,8 @@
+0.10.0
+
+  Enlarge Grok mark
+  Document the panel
+
 0.9.2
 
   Import Quickshell.Io for IpcHandler

@@ -59,7 +59,7 @@ no flag the command prints the record.
 
 - **Grok first**, then the other agents A–Z, then **Overall** when at least two have data. The pane opens on Grok.
 - **Days under 10M** hidden. The day header is the average of the days that remain. A span longer than a week uses `M/D`.
-- **Pool estimate** on the first week or month meter (`≈ 868M/week`). Overall skips it.
+- **Pool estimate** on each week or month meter (`≈ 868M/week`). Cursor's Other Models meter and Overall skip it.
 - **Grok mark** is `assets/grok.svg` (white) or `assets/grok-light.svg` on a light bar, drawn at 1.4× the other marks. `assets/grok.txt` is an unused braille transcription.
 - **Cursor** has marks here and no collector. A `cursor.json` from elsewhere still gets a chip.
 

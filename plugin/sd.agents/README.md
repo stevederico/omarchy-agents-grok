@@ -24,13 +24,14 @@ watches the records (and handles the optional cross-device aggregation);
   averaged. The model list shows eight rows here and four on a single agent.
   If any agent lacks prompt stats, Overall hides prompt counts too.
 - **Limits** — the percentage of each allowance used, a matching meter, and
-  the time until the window resets. The first week or month meter also shows
+  the time until the window resets. Each week or month meter also shows
   an estimated pool, spent in that window divided by the fraction used
-  (`≈ 868M/week`). The estimate uses every recent day, not the 10M display
-  filter. A label with no week or month word counts as a month when reset is
-  more than 8 days out. Session windows are too short for daily token
-  buckets, so they stay a percent only. Overall does not estimate, because
-  its tokens are a mix of plans.
+  (`≈ 868M/week`). Cursor's Other Models meter stays a percent: that pool
+  is optional and is not the same tokens. The estimate uses every recent
+  day, not the 10M display filter. A label with no week or month word
+  counts as a month when reset is more than 8 days out. Session windows
+  are too short for daily token buckets, so they stay a percent only.
+  Overall does not estimate, because its tokens are a mix of plans.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.

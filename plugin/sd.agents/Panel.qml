@@ -154,8 +154,9 @@ Panel {
     return any ? sum : -1
   }
 
-  // Spent in the open window divided by the fraction used. One estimate per
-  // agent, on the first week or month meter. Overall mixes pools, so it skips.
+  // Spent in the open window divided by the fraction used. Every week or
+  // month meter gets its own estimate except Other Models, whose tokens
+  // are a different optional pool. Overall mixes plans, so it skips.
   function estimateCap(p, entry) {
     if (!p || p.providerId === "overall") return ""
     var span = windowSpanFor(entry)
@@ -175,16 +176,13 @@ Panel {
     if (!p) return []
     var out = []
     var list = p.limits || []
-    var estimated = false
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
       if (!(percent >= 0)) continue
       var window = limitWindow(entry.label, percent, entry.resetsAt, entry.title)
-      if (!estimated) {
+      if (!limitIsOtherModels(window))
         window.estimate = estimateCap(p, entry)
-        if (window.estimate !== "") estimated = true
-      }
       out.push(window)
     }
     return out

@@ -1,3 +1,7 @@
+0.12.0
+
+  Estimate Cursor Models
+
 0.11.0
 
   Ignore Other Models alarm

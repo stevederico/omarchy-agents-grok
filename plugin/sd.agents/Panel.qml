@@ -286,8 +286,19 @@ Panel {
     return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][parsed.getDay()]
   }
 
+  function monthSpan(p) {
+    var days = p ? (p.recentDays || []) : []
+    return days.length > 7
+  }
+
   function dayLabel(date, today) {
     if (today) return "Today"
+    // A week fits weekday names. A billing month repeats them, so show M/D.
+    if (monthSpan(root.provider)) {
+      var parsed = new Date(String(date || "") + "T00:00:00")
+      if (isNaN(parsed.getTime())) return String(date || "")
+      return (parsed.getMonth() + 1) + "/" + parsed.getDate()
+    }
     return dayName(date)
   }
 

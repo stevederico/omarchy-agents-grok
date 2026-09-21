@@ -15,7 +15,7 @@ keep a second clone under `Projects/plugins` or `omarchy-dotfiles`.
 | Path | What it is |
 |---|---|
 | `bin/omarchy-agent-usage-grok` | Collector. Session tokens from `~/.grok/sessions`; weekly SuperGrok credits from the CLI billing endpoint, falling back to `~/.grok/logs/unified.jsonl`. |
-| `plugin/sd.agents/` | Local clone of stock `omarchy.agents` with Grok marks and a manual/auto weekly-limit control. |
+| `plugin/sd.agents/` | Live **My Agents** panel (`sd.agents`). Grok is the first chip and the tab the pane opens on. **Overall** sums tokens across every agent that already has a chip. Days under 10M are hidden, and the day header shows the average of the days that remain. A span longer than a week uses dates (`9/11`) instead of repeating weekday names. Grok keeps the braille mark and the manual/auto weekly-limit control. |
 | `assets/` | Grok SVG marks (and a braille fallback) for an upstream PR. |
 | `patches/` | Grok-only delta vs stock `omarchy.agents`. Optional for a first PR. |
 | `extras/` | Local timer, path unit, and login hook. Not first-party Omarchy. |
@@ -29,9 +29,11 @@ make install-user
 systemctl --user enable --now omarchy-agent-usage-grok.timer omarchy-agent-usage-grok.path
 ```
 
-That installs the collector to `~/.local/lib/omarchy/`, symlinks the plugin
-to `~/.config/omarchy/plugins/sd.agents` (on this machine that directory is
-`~/Projects/plugins`), and installs the user units. Refresh a record with:
+That installs the collector to `~/.local/lib/omarchy/`, symlinks
+`~/.config/omarchy/plugins/sd.agents` at this repo's `plugin/sd.agents`,
+and installs the user units. The shell watcher does not follow that
+symlink, so after a QML edit run `omarchy-shell shell rescanPlugins` or
+`omarchy-restart-shell`. Refresh a record with:
 
 ```bash
 omarchy-agent-usage-grok --write

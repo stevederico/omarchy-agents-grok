@@ -6,9 +6,9 @@ Grok-only edits on top of stock `omarchy.agents`. The live plugin in
 
 | Patch | Needed for | Notes |
 |---|---|---|
-| `Panel.qml.patch` | Weekly-limit button / Auto toggle / braille mark | Optional for a first PR. Stock already renders any `grok.json` the collector writes. |
+| `Main.qml.patch` | Nothing in the patch itself | The file on disk is one local comment. The live `Main.qml` is ahead of it: Grok sorts first, and Overall is inserted after Grok. Do not apply this patch as the current behavior. |
+| `Panel.qml.patch` | Weekly-limit button / Auto toggle / braille mark | Behind the live panel. Missing Overall, the 10M day floor, the active-day average, and month dates. |
 | `manifest.json.patch` | Settings keys used by the panel UI | Only if you take `Panel.qml.patch`. |
-| `Main.qml.patch` | Nothing functional | One local comment. Drop it. |
 
 Stock policy is that adding an agent is adding a collector plus optional
 `assets/<id>.svg`. The panel is supposed to stay a display. The extra

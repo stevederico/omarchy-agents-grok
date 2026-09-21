@@ -1,29 +1,38 @@
 # Agents
 
-One bar icon and one panel for every AI coding subscription on the machine.
-The panel is strictly a display: it watches the usage records that
-`omarchy-agent-usage-update` writes to `~/.local/state/omarchy/agents/usage/`
-and draws whatever appears there. `Panel.qml` owns the bar button and the
-popup; `Main.qml` discovers and watches the records (and handles the optional
-cross-device aggregation); `Agent.qml` is the per-record file watcher.
+`sd.agents` ("My Agents"), cloned from stock `omarchy.agents`. One bar icon
+and one panel for every AI coding subscription on the machine. The panel is
+a display: it watches the usage records in
+`~/.local/state/omarchy/agents/usage/` and draws whatever appears there.
+`Panel.qml` owns the bar button and the popup; `Main.qml` discovers and
+watches the records (and handles the optional cross-device aggregation);
+`Agent.qml` is the per-record file watcher.
 
 ## Panel
 
-- **Hero** — the mark, the tool, and the plan it runs on ("Max 20x", "Pro").
+- **Hero** — the mark, the tool, and the plan it runs on ("SuperGrok Heavy", "Ultra").
   Auth and endpoint problems replace the plan line and repeat in a card.
-- **Subscription switch** — one chip per enabled agent (`h`/`l` or click).
-  It appears only when more than one agent is enabled.
+  Grok uses the braille mark. Overall uses Σ.
+- **Subscription switch** — one chip per enabled agent, plus **Overall** when
+  at least two agents have data. Order is Grok, Overall, then the rest A–Z.
+  The pane opens on Grok. Chips appear only when more than one agent is enabled.
+  `h`/`l` or click.
+- **Overall** — tokens by day and by model are summed. Each plan limit stays
+  its own meter, titled with the agent name. Percents are not averaged.
+  The model list shows eight rows here and four on a single agent.
 - **Limits** — the percentage of each allowance used, a matching meter, and
-  the time until the session or weekly window resets.
+  the time until the window resets.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.
-- **Tokens by day** — one row per day for the last week: day, bar, tokens, with today
-  bolded at the bottom. Hover today for its prompt and session count.
+- **Tokens by day** — one row per day at or above 10M tokens: day, bar, tokens,
+  with today bolded. The header shows the average of those days. Seven or
+  fewer rows use weekday names; a longer span uses `M/D`. Hover today for
+  its prompt and session count when that agent counts prompts.
 - **Tokens by model** — tokens per model with the bar behind each row scaled
-  to the heaviest model,
-  the same way the weekly chart scales to its busiest day. Hover for the
-  input / output / cache split.
+  to the heaviest model. Hover for the input / output / cache split.
+- **Grok weekly limit** — on the Grok chip, Auto update checks on a timer, or
+  press Update / `u` to scrape once.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
@@ -31,10 +40,7 @@ there is no switch row at all; with none, the module leaves the bar entirely
 rather than sitting there with nothing to say. A CLI installed mid-session
 shows up at the next refresh, so nothing polls the disk waiting for it.
 
-That self-hiding is why the widget ships in the default bar layout: a machine
-that has never run an AI coding agent draws nothing, and the icon arrives on
-its own the first time a scan finds usage. Drop it with
-`omarchy plugin disable omarchy.agents`.
+Drop it with `omarchy plugin disable sd.agents`.
 
 ## Data
 
@@ -44,14 +50,17 @@ written by `omarchy-agent-usage-update`. That command runs one
 on its refresh timer and whenever you ask for a refresh, and picks up any
 record that lands in the directory regardless of who wrote it.
 
-Adding an agent therefore never touches this plugin: ship a collector that
+Adding an agent therefore never requires a new panel: ship a collector that
 prints the record contract (see the `claude` and `codex` collectors in
-`bin/`), and the panel gains a tab. An `assets/<id>.svg` mark is optional —
+Omarchy's `bin/`, and `bin/omarchy-agent-usage-grok` in this repo), and the
+panel gains a tab. Cursor is not collected here; a `cursor.json` written by
+another collector still shows up. An `assets/<id>.svg` mark is optional —
 with an `assets/<id>-light.svg` twin if the mark needs a dark variant for
 light surfaces — and the bar glyph stands in when there is none.
 
 | Collector | Limits | Local stats |
 |---|---|---|
+| `grok` | Grok CLI billing endpoint, then `~/.grok/logs/unified.jsonl` | `~/.grok/sessions` turn completions, last 7 days |
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
@@ -96,18 +105,21 @@ only adds the meter and the spent-of-funded line under the real figure.
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
-  Tab moves to the neighboring bar panel, Esc closes.
-- IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
+  `u` scrapes the Grok weekly limit, Tab moves to the neighboring bar panel,
+  Esc closes.
+- IPC: `omarchy-shell sd.agents <open|close|toggle|refresh|next|scrapeLimits>`.
 
 ## Settings
 
 Settings live in the widget's entry in `~/.config/omarchy/shell.json`. The
 top-level keys can be set with
-`omarchy bar set omarchy.agents <key> <value>`:
+`omarchy bar set sd.agents <key> <value>`:
 
 | Key | Default | What it does |
 |---|---|---|
 | `refreshIntervalSec` | `900` | How often the usage records regenerate |
+| `grokLimitsMode` | `"Manual"` | `"Auto"` scrapes the Grok weekly limit on a timer |
+| `grokLimitsIntervalSec` | `900` | Auto check interval. Also offers 30 min, 1 hour, and 2 hours in the panel |
 | `syncMode` | `"Off"` | `"On"` writes this machine's snapshot and merges the others |
 | `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
 | `syncFileName` | `<hostname>.json` | This machine's snapshot file |
@@ -116,8 +128,8 @@ top-level keys can be set with
 Numbers need `--json`, or they land in `shell.json` as strings:
 
 ```bash
-omarchy bar set omarchy.agents refreshIntervalSec 300 --json
-omarchy bar set omarchy.agents syncDir '~/Sync/agent-usage'
+omarchy bar set sd.agents refreshIntervalSec 300 --json
+omarchy bar set sd.agents syncDir '~/Sync/agent-usage'
 ```
 
 Per-agent enablement is nested, and `set` writes its key literally rather
@@ -125,7 +137,8 @@ than walking a dotted path — so pass the whole `providers` object as JSON (or
 edit `shell.json` directly):
 
 ```bash
-omarchy bar set omarchy.agents providers '{
+omarchy bar set sd.agents providers '{
+  "grok": { "enabled": true },
   "claude": { "enabled": true },
   "codex": { "enabled": false },
   "fireworks": { "enabled": true }

@@ -1,3 +1,7 @@
+0.5.0
+
+  Document the live panel
+
 0.4.0
 
   Show active-day average

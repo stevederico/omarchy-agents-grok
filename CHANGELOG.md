@@ -1,3 +1,8 @@
+0.4.0
+
+  Show active-day average
+  Hide days under 10M
+
 0.3.0
 
   Add Overall tab

@@ -286,9 +286,27 @@ Panel {
     return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][parsed.getDay()]
   }
 
-  function monthSpan(p) {
+  // A day under 10M is idle. It stays out of the chart and out of the average.
+  readonly property real activeDayFloor: 10000000
+
+  function activeDays(p) {
     var days = p ? (p.recentDays || []) : []
-    return days.length > 7
+    var out = []
+    for (var i = 0; i < days.length; i++) {
+      if (Number(days[i] && days[i].messageCount || 0) >= root.activeDayFloor) out.push(days[i])
+    }
+    return out
+  }
+
+  function dayAverage(days) {
+    if (!days || days.length === 0) return 0
+    var sum = 0
+    for (var i = 0; i < days.length; i++) sum += Number(days[i].messageCount || 0)
+    return sum / days.length
+  }
+
+  function monthSpan(p) {
+    return activeDays(p).length > 7
   }
 
   function dayLabel(date, today) {
@@ -318,10 +336,10 @@ Panel {
     return text
   }
 
-  function weekPeak(p) {
-    var days = p ? (p.recentDays || []) : []
+  function weekPeak(days) {
     var peak = 0
-    for (var i = 0; i < days.length; i++) peak = Math.max(peak, Number(days[i].messageCount || 0))
+    var list = days || []
+    for (var i = 0; i < list.length; i++) peak = Math.max(peak, Number(list[i].messageCount || 0))
     return peak
   }
 
@@ -734,18 +752,40 @@ Panel {
 
           Column {
             id: usageSection
-            visible: !!root.provider && root.provider.recentDays && root.provider.recentDays.length > 0
+            visible: usageSection.days.length > 0
             width: parent.width
             spacing: Style.spacing.md
 
-            readonly property var days: root.provider ? (root.provider.recentDays || []) : []
-            readonly property real peak: Math.max(1, root.weekPeak(root.provider))
+            readonly property var days: root.activeDays(root.provider)
+            readonly property real average: root.dayAverage(days)
+            readonly property real peak: Math.max(1, root.weekPeak(days))
 
-            PanelSectionHeader {
+            Item {
               width: parent.width
-              text: "TOKENS BY DAY"
-              foreground: root.foreground
-              fontFamily: root.fontFamily
+              implicitHeight: Math.max(dayHeader.implicitHeight, dayAvg.implicitHeight)
+
+              PanelSectionHeader {
+                id: dayHeader
+                text: "TOKENS BY DAY"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                anchors.left: parent.left
+                anchors.right: dayAvg.left
+                anchors.rightMargin: Style.spacing.sm
+                anchors.verticalCenter: parent.verticalCenter
+                elide: Text.ElideRight
+              }
+
+              Text {
+                id: dayAvg
+                text: "avg " + usage.formatTokenCount(usageSection.average)
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
 
             Repeater {

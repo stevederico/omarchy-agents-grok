@@ -1,3 +1,7 @@
+0.15.0
+
+  Rename week total
+
 0.14.0
 
   Show week token total

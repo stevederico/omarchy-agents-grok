@@ -320,12 +320,6 @@ Panel {
     return sum
   }
 
-  function weekTokenLabel() {
-    var week = workWeek(root.nowMs)
-    return "Sat " + (week.start.getMonth() + 1) + "/" + week.start.getDate()
-      + " noon - Fri " + (week.end.getMonth() + 1) + "/" + week.end.getDate() + " noon"
-  }
-
   // A day under 10M is idle. It stays out of the chart and out of the average.
   readonly property real activeDayFloor: 10000000
 
@@ -842,7 +836,7 @@ Panel {
 
               Text {
                 id: weekLabel
-                text: root.weekTokenLabel()
+                text: "Weekly Total"
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption

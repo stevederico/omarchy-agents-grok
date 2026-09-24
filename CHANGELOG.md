@@ -1,3 +1,7 @@
+0.14.0
+
+  Show week token total
+
 0.13.0
 
   Hide Claude session

@@ -39,7 +39,10 @@ watches the records (and handles the optional cross-device aggregation);
 - **Tokens by day** — one row per day at or above 10M tokens: day, bar, tokens,
   with today bolded. The header shows the average of those days. Seven or
   fewer rows use weekday names; a longer span uses `M/D`. Hover today for
-  its prompt and session count when that agent counts prompts.
+  its prompt and session count when that agent counts prompts. Under the
+  rows, the total for Saturday noon through Friday noon. That sum uses
+  whole calendar days already on the chart, including quiet days under 10M.
+  Saturday morning and Friday afternoon stay in those days.
 - **Tokens by model** — tokens per model with the bar behind each row scaled
   to the heaviest model. Hover for the input / output / cache split.
 

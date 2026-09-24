@@ -282,6 +282,50 @@ Panel {
     return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][parsed.getDay()]
   }
 
+  function dateKey(d) {
+    return d.getFullYear()
+      + "-" + String(d.getMonth() + 1).padStart(2, "0")
+      + "-" + String(d.getDate()).padStart(2, "0")
+  }
+
+  // Work week is Saturday noon through Friday noon, local time.
+  // Before this Saturday's noon, that window is still last week's.
+  function workWeek(nowMs) {
+    var now = new Date(nowMs)
+    var back = (now.getDay() + 1) % 7
+    var saturday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back, 12, 0, 0, 0)
+    if (now.getTime() < saturday.getTime())
+      saturday = new Date(saturday.getFullYear(), saturday.getMonth(), saturday.getDate() - 7, 12, 0, 0, 0)
+    var friday = new Date(saturday.getFullYear(), saturday.getMonth(), saturday.getDate() + 6, 12, 0, 0, 0)
+    return { start: saturday, end: friday }
+  }
+
+  // Day rows are whole dates, so this adds each calendar day from that
+  // Saturday through that Friday. Saturday morning and Friday afternoon
+  // stay in, because the chart has no hour split.
+  function weekTokenTotal(p) {
+    if (!p) return 0
+    var week = workWeek(root.nowMs)
+    var now = new Date(root.nowMs)
+    var until = now.getTime() < week.end.getTime() ? now : new Date(week.end.getTime() - 1)
+    var startKey = dateKey(week.start)
+    var untilKey = dateKey(until)
+    var days = p.recentDays || []
+    var sum = 0
+    for (var i = 0; i < days.length; i++) {
+      var date = String(days[i] && days[i].date || "")
+      if (date >= startKey && date <= untilKey)
+        sum += Number(days[i].messageCount || 0)
+    }
+    return sum
+  }
+
+  function weekTokenLabel() {
+    var week = workWeek(root.nowMs)
+    return "Sat " + (week.start.getMonth() + 1) + "/" + week.start.getDate()
+      + " noon - Fri " + (week.end.getMonth() + 1) + "/" + week.end.getDate() + " noon"
+  }
+
   // A day under 10M is idle. It stays out of the chart and out of the average.
   readonly property real activeDayFloor: 10000000
 
@@ -736,15 +780,17 @@ Panel {
 
           Column {
             id: usageSection
-            visible: usageSection.days.length > 0
+            visible: usageSection.days.length > 0 || usageSection.weekTotal > 0
             width: parent.width
             spacing: Style.spacing.md
 
             readonly property var days: root.activeDays(root.provider)
             readonly property real average: root.dayAverage(days)
             readonly property real peak: Math.max(1, root.weekPeak(days))
+            readonly property real weekTotal: root.weekTokenTotal(root.provider)
 
             Item {
+              visible: usageSection.days.length > 0
               width: parent.width
               implicitHeight: Math.max(dayHeader.implicitHeight, dayAvg.implicitHeight)
 
@@ -785,6 +831,52 @@ Panel {
                 // By date, not by position: the Claude stats-cache fallback can
                 // hand us a window that stops short of today.
                 today: String(modelData.date || "") === root.todayDate()
+              }
+            }
+
+            Item {
+              id: weekTotalRow
+              visible: usageSection.weekTotal > 0 || usageSection.days.length > 0
+              width: parent.width
+              implicitHeight: Math.max(weekLabel.implicitHeight, weekValue.implicitHeight) + Style.spacing.sm
+
+              Text {
+                id: weekLabel
+                text: root.weekTokenLabel()
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                elide: Text.ElideRight
+                anchors.left: parent.left
+                anchors.right: weekValue.left
+                anchors.rightMargin: Style.spacing.sm
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: weekValue
+                text: usage.formatTokenCount(usageSection.weekTotal)
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                horizontalAlignment: Text.AlignRight
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              MouseArea {
+                id: weekHover
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+              }
+
+              PanelToolTip {
+                visible: weekHover.containsMouse
+                text: "Whole days from Saturday through Friday"
+                fontFamily: root.fontFamily
               }
             }
           }

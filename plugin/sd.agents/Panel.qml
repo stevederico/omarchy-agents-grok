@@ -320,6 +320,80 @@ Panel {
     return sum
   }
 
+  // Plan prices live on the bar entry as monthlyUsd, keyed by provider id.
+  // A missing key is unset. Zero is a real price (a plan included elsewhere).
+  function monthlyPrice(id) {
+    var map = settings && settings.monthlyUsd
+    if (!map || map[id] === undefined || map[id] === null || map[id] === "") return NaN
+    var n = Number(map[id])
+    return isFinite(n) && n >= 0 ? n : NaN
+  }
+
+  function formatPriceInput(value) {
+    var n = Math.round(Number(value) * 100) / 100
+    if (!isFinite(n)) return ""
+    if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n))
+    return n.toFixed(2)
+  }
+
+  // Flat monthly fee spread across the panel's Saturday–Friday token total.
+  function rateText(monthly, tokens) {
+    if (!isFinite(monthly)) return ""
+    var week = monthly * 12 / 52
+    var text = formatMoney(week) + " this week"
+    if (!(tokens > 0)) return text
+    var perM = week / (tokens / 1000000)
+    if (!(perM > 0)) return text + " · $0 / 1M"
+    if (perM < 0.01) return text + " · $" + perM.toFixed(4) + " / 1M"
+    if (perM < 1) return text + " · $" + perM.toFixed(3) + " / 1M"
+    return text + " · $" + perM.toFixed(2) + " / 1M"
+  }
+
+  function costSummary(p) {
+    if (!p) return { show: false, monthly: NaN, tokens: 0, editable: false }
+    if (p.providerId !== "overall") {
+      return {
+        show: true,
+        monthly: monthlyPrice(p.providerId),
+        tokens: weekTokenTotal(p),
+        editable: true
+      }
+    }
+    var monthly = 0
+    var tokens = 0
+    var any = false
+    for (var i = 0; i < providers.length; i++) {
+      var item = providers[i]
+      if (!item || item.providerId === "overall") continue
+      var price = monthlyPrice(item.providerId)
+      if (!isFinite(price)) continue
+      any = true
+      monthly += price
+      tokens += weekTokenTotal(item)
+    }
+    return { show: any, monthly: any ? monthly : NaN, tokens: tokens, editable: false }
+  }
+
+  function saveMonthlyPrice(id, raw) {
+    if (!id || id === "overall") return
+    var trimmed = String(raw || "").replace(/[$,\s]/g, "")
+    var copy = JSON.parse(JSON.stringify(settings || {}))
+    var map = copy.monthlyUsd
+    if (!map || typeof map !== "object" || Array.isArray(map)) {
+      map = {}
+      copy.monthlyUsd = map
+    }
+    if (trimmed === "") {
+      delete map[id]
+    } else {
+      var n = Number(trimmed)
+      if (!isFinite(n) || n < 0) return
+      map[id] = Math.round(n * 100) / 100
+    }
+    if (bar && bar.shell && typeof bar.shell.updateEntryInline === "function")
+      bar.shell.updateEntryInline(moduleName || "sd.agents", copy)
+  }
+
   // A day under 10M is idle. It stays out of the chart and out of the average.
   readonly property real activeDayFloor: 10000000
 
@@ -528,6 +602,7 @@ Panel {
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
       }
+      blocked: priceField.activeFocus
 
       Flickable {
         id: panelFlick
@@ -871,6 +946,122 @@ Panel {
                 visible: weekHover.containsMouse
                 text: "Whole days from Saturday through Friday"
                 fontFamily: root.fontFamily
+              }
+            }
+
+            Column {
+              id: costBlock
+              visible: costBlock.summary.editable || costBlock.summary.show
+              width: parent.width
+              spacing: Style.space(4)
+
+              readonly property var summary: root.costSummary(root.provider)
+
+              Item {
+                width: parent.width
+                implicitHeight: Math.max(costLabel.implicitHeight, priceEntry.implicitHeight, plansValue.implicitHeight)
+
+                Text {
+                  id: costLabel
+                  text: costBlock.summary.editable ? "Monthly" : "Plans"
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  elide: Text.ElideRight
+                  anchors.left: parent.left
+                  anchors.right: priceEntry.visible ? priceEntry.left : plansValue.left
+                  anchors.rightMargin: Style.spacing.sm
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Row {
+                  id: priceEntry
+                  visible: costBlock.summary.editable
+                  spacing: Style.space(4)
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Text {
+                    text: "$"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  TextField {
+                    id: priceField
+                    width: Style.space(76)
+                    placeholderText: "0"
+                    horizontalAlignment: TextInput.AlignRight
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    foreground: root.foreground
+                    verticalPadding: Style.space(2)
+                    horizontalPadding: Style.space(6)
+                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    property string priceEcho: {
+                      var id = root.provider ? root.provider.providerId : ""
+                      var price = root.monthlyPrice(id)
+                      return id + "\n" + (isFinite(price) ? root.formatPriceInput(price) : "")
+                    }
+
+                    function applyEcho() {
+                      var cut = priceEcho.indexOf("\n")
+                      text = cut < 0 ? "" : priceEcho.slice(cut + 1)
+                    }
+
+                    onPriceEchoChanged: if (!activeFocus) applyEcho()
+                    onActiveFocusChanged: if (!activeFocus) applyEcho()
+                    Component.onCompleted: applyEcho()
+
+                    onEditingFinished: root.saveMonthlyPrice(root.provider ? root.provider.providerId : "", text)
+                    onAccepted: {
+                      root.saveMonthlyPrice(root.provider ? root.provider.providerId : "", text)
+                      keyCatcher.forceActiveFocus()
+                    }
+                    Keys.onEscapePressed: function(event) {
+                      applyEcho()
+                      keyCatcher.forceActiveFocus()
+                      event.accepted = true
+                    }
+                  }
+
+                  Text {
+                    text: "/mo"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                }
+
+                Text {
+                  id: plansValue
+                  visible: !costBlock.summary.editable && isFinite(costBlock.summary.monthly)
+                  text: isFinite(costBlock.summary.monthly) ? root.formatMoney(costBlock.summary.monthly) + " /mo" : ""
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+              }
+
+              Text {
+                visible: isFinite(costBlock.summary.monthly)
+                width: parent.width
+                text: root.rateText(costBlock.summary.monthly, costBlock.summary.tokens)
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                horizontalAlignment: Text.AlignRight
+                elide: Text.ElideRight
               }
             }
           }

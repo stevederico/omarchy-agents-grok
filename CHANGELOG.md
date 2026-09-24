@@ -1,3 +1,8 @@
+0.16.0
+
+  Add monthly plan price
+  Show cost per million
+
 0.15.0
 
   Rename week total

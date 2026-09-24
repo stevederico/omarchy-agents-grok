@@ -137,6 +137,11 @@ top-level keys can be set with
 | `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
 | `syncFileName` | `<hostname>.json` | This machine's snapshot file |
 | `syncDeviceId` | hostname | Stable device name inside the snapshot |
+| `monthlyUsd` | `{}` | Monthly plan price in USD, keyed by provider id. `0` is a real price. A missing key is unset |
+
+The panel edits `monthlyUsd` from the Monthly field under Weekly Total. The
+line under it is that price times 12/52, divided by this Saturday–Friday
+token total. Overall adds every provider that has a price, including zeros.
 
 Numbers need `--json`, or they land in `shell.json` as strings:
 

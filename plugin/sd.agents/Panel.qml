@@ -117,6 +117,18 @@ Panel {
     return String((w && w.title) || "").toLowerCase().indexOf("other models") >= 0
   }
 
+  // Claude's 5-hour session meter stays off Claude Code and Overall.
+  // The weekly meter stays. Other agents keep their session meters.
+  function limitIsClaudeSession(p, entry) {
+    if (!p || !entry) return false
+    var id = String(p.providerId || "")
+    if (id !== "claude" && id !== "overall") return false
+    var text = (String(entry.title || "") + " " + String(entry.label || "")).toLowerCase()
+    if (text.indexOf("session") < 0) return false
+    if (id === "overall" && text.indexOf("claude") < 0) return false
+    return true
+  }
+
   function localDateKey(ms) {
     var d = new Date(ms)
     if (isNaN(d.getTime())) return ""
@@ -180,6 +192,7 @@ Panel {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
       if (!(percent >= 0)) continue
+      if (limitIsClaudeSession(p, entry)) continue
       var window = limitWindow(entry.label, percent, entry.resetsAt, entry.title)
       if (!limitIsOtherModels(window))
         window.estimate = estimateCap(p, entry)

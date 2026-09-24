@@ -1,3 +1,7 @@
+0.13.0
+
+  Hide Claude session
+
 0.12.0
 
   Estimate Cursor Models

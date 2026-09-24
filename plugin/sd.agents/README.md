@@ -20,7 +20,8 @@ watches the records (and handles the optional cross-device aggregation);
   `h`/`l` or click.
 - **Overall** — tokens by day and by model are summed. Missing days inside
   the span are filled with zero, then the 10M floor drops them. Each plan
-  limit stays its own meter, titled `Agent · limit`. Percents are not
+  limit stays its own meter, titled `Agent · limit`. Claude's 5-hour
+  session meter is left off here and on the Claude Code tab. Percents are not
   averaged. The model list shows eight rows here and four on a single agent.
   If any agent lacks prompt stats, Overall hides prompt counts too.
 - **Limits** — the percentage of each allowance used, a matching meter, and
@@ -69,7 +70,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | Collector | Limits | Local stats |
 |---|---|---|
 | `grok` | Grok CLI billing endpoint, then `~/.grok/logs/unified.jsonl` | `~/.grok/sessions` turn completions, last 7 days |
-| `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
+| `claude` | Anthropic's OAuth usage endpoint (7-day weekly; the 5-hour session meter is hidden) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 

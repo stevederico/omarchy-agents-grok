@@ -274,6 +274,84 @@ Panel {
     return "≈ " + usage.formatTokenCount(cap) + suffix
   }
 
+  // ---------------------------------------------------------------- export
+  //
+  // Draft Open Usage reports (github.com/stevederico/open-usage) from the
+  // saved meter ticks. Only on request: the button copies them to the
+  // clipboard, and nothing leaves this machine unless you paste it somewhere.
+
+  function tokenMix(p) {
+    var usageByModel = p ? (p.modelUsage || {}) : {}
+    var out = 0, fresh = 0, read = 0
+    for (var id in usageByModel) {
+      var b = usageByModel[id] || {}
+      out += Number(b.outputTokens || 0)
+      fresh += Number(b.inputTokens || 0) + Number(b.cacheCreationInputTokens || 0)
+      read += Number(b.cacheReadInputTokens || 0)
+    }
+    var total = out + fresh + read
+    if (!(total > 0)) return null
+    function pct(n) { return Math.round(n / total * 10000) / 100 }
+    return { output: pct(out), newInput: pct(fresh), cacheRead: pct(read) }
+  }
+
+  function exportReports() {
+    var today = new Date().toISOString().slice(0, 10)
+    var reports = []
+    for (var i = 0; i < providers.length; i++) {
+      var p = providers[i]
+      if (!p || p.providerId === "overall") continue
+      var list = p.limits || []
+      for (var j = 0; j < list.length; j++) {
+        var entry = list[j] || {}
+        if (windowSpanFor(entry) < 24 * 3600 * 1000) continue
+        var m = meterTicks[meterKey(p, entry)]
+        if (!m) continue
+        var meter = String(entry.title || entry.label || "")
+        var report = { plan: (p.providerName + " " + p.tierLabel).trim() + ", " + meter, date: today }
+        if (m.first && m.latest && m.latest.p - m.first.p >= 0.0099 && m.latest.t > m.first.t) {
+          report.method = "ticks"
+          report.tokens = Math.round(m.latest.t - m.first.t)
+          report.percentFrom = Math.round(m.first.p * 10000) / 100
+          report.percentTo = Math.round(m.latest.p * 10000) / 100
+        } else if (m.last && m.last.p > 0 && m.last.p < 1) {
+          var percent = Math.round(m.last.p * 10000) / 100
+          report.method = "reading"
+          report.tokens = Math.round(m.last.t)
+          report.percentTo = percent
+          report.wholePercent = percent === Math.round(percent)
+        } else {
+          continue
+        }
+        var mix = tokenMix(p)
+        if (mix) report.mix = mix
+        report.source = "Omarchy agents pane"
+        reports.push(report)
+      }
+    }
+    return JSON.stringify(reports, null, 2)
+  }
+
+  property string exportStatus: ""
+
+  function copyExport() {
+    var text = exportReports()
+    var count = JSON.parse(text).length
+    if (count === 0) {
+      exportStatus = "No meter readings yet"
+    } else {
+      Quickshell.execDetached(["wl-copy", text])
+      exportStatus = "Copied " + count + " report" + (count === 1 ? "" : "s")
+    }
+    exportStatusTimer.restart()
+  }
+
+  Timer {
+    id: exportStatusTimer
+    interval: 2500
+    onTriggered: root.exportStatus = ""
+  }
+
   function limitWindows(p) {
     if (!p) return []
     var out = []
@@ -646,6 +724,7 @@ Panel {
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
     function next(): string { root.selectProvider(root.providerIndex + 1); return "ok" }
+    function exportReports(): string { return root.exportReports() }
   }
 
   BarIconButton {
@@ -1199,6 +1278,17 @@ Panel {
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
+          }
+
+          Button {
+            width: parent.width
+            text: root.exportStatus !== "" ? root.exportStatus : "Export for Open Usage"
+            bordered: true
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            verticalPadding: Style.spacing.controlPaddingY
+            onClicked: root.copyExport()
           }
         }
       }

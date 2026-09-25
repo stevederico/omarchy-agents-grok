@@ -60,7 +60,7 @@ no flag the command prints the record.
 - **Grok first**, then the other agents A–Z, then **Overall** when at least two have data. The pane opens on Grok.
 - **Days under 10M** hidden. The day header is the average of the days that remain. A span longer than a week uses `M/D`.
 - **Pool estimate** on each week or month meter (`≈ 868M/week`). Cursor's Other Models meter and Overall skip it. Once the meter has ticked twice a whole point apart, the estimate is the tokens between those ticks over the percents between them, so it stops jumping each time a whole-percent meter moves. Readings live in `~/.local/state/omarchy/agents/meter-ticks.json`.
-- **Export for Open Usage** button at the bottom copies draft [Open Usage](https://github.com/stevederico/open-usage) reports to the clipboard: tokens, meter percents and token mix per meter. Nothing is sent anywhere. Scripts can get the same JSON with `qs ipc -p /usr/share/omarchy/shell call sd.agents exportReports`.
+- **Export** button at the bottom copies JSON draft [Open Usage](https://github.com/stevederico/open-usage) reports to the clipboard: tokens, meter percents and token mix per meter. Nothing is sent anywhere. Scripts can get the same JSON with `qs ipc -p /usr/share/omarchy/shell call sd.agents exportReports`.
 - **Monthly price** under Weekly Total. The line under the field is that price × 12/52, over the Saturday–Friday token total (`$75.00 this week · $0.058 / 1M`). Overall adds every priced plan, and `0` counts.
 - **Grok mark** is `assets/grok.svg` (white) or `assets/grok-light.svg` on a light bar, drawn at 1.4× the other marks. `assets/grok.txt` is an unused braille transcription.
 - **Cursor** has marks here and no collector. A `cursor.json` from elsewhere still gets a chip.

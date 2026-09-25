@@ -1282,7 +1282,7 @@ Panel {
 
           Button {
             width: parent.width
-            text: root.exportStatus !== "" ? root.exportStatus : "Export for Open Usage"
+            text: root.exportStatus !== "" ? root.exportStatus : "Export"
             bordered: true
             foreground: root.foreground
             fontFamily: root.fontFamily

@@ -91,4 +91,4 @@ checkout until you are opening that PR.
 
 ## 📄 **License**
 
-The plugin manifest declares MIT.
+MIT. See [LICENSE](LICENSE).

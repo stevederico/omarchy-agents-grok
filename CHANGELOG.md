@@ -1,3 +1,7 @@
+0.18.0
+
+  Add MIT license
+
 0.17.0
 
   Steady pool estimate

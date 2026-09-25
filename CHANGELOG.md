@@ -1,3 +1,8 @@
+0.17.0
+
+  Steady pool estimate
+  Save meter ticks
+
 0.16.0
 
   Add monthly plan price

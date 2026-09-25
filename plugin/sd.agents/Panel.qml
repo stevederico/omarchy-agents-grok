@@ -166,13 +166,104 @@ Panel {
     return any ? sum : -1
   }
 
-  // Spent in the open window divided by the fraction used. Every week or
-  // month meter gets its own estimate except Other Models, whose tokens
-  // are a different optional pool. Overall mixes plans, so it skips.
+  // One key per meter per window. Resets jitter by a second between probes,
+  // so the hour is what identifies the window.
+  function meterKey(p, entry) {
+    var reset = new Date(String(entry && entry.resetsAt || "")).getTime()
+    if (!p || !isFinite(reset)) return ""
+    return p.providerId + "|" + String(entry.title || entry.label || "") + "|" + Math.round(reset / 3600000)
+  }
+
+  // Whole-percent meters make spent / percent jump 25% at 4% every time the
+  // meter ticks. A tick is a fixed point on the meter, so the tokens between
+  // the first and the latest tick over the percents between them is the cap,
+  // whether the meter rounds or floors, and whatever the window's first day
+  // bucket held before the window opened.
+  property var meterTicks: ({})
+  property bool meterTicksLoaded: false
+  readonly property string meterTicksPath: usage.usageDir.replace(/\/usage$/, "") + "/meter-ticks.json"
+
+  FileView {
+    id: meterTicksFile
+    path: root.meterTicksPath
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      try { root.meterTicks = JSON.parse(text() || "{}") || {} } catch (e) { root.meterTicks = {} }
+      root.meterTicksLoaded = true
+      root.recordMeterTicks()
+    }
+    onLoadFailed: {
+      root.meterTicksLoaded = true
+      root.recordMeterTicks()
+    }
+  }
+
+  onProvidersChanged: Qt.callLater(root.recordMeterTicks)
+
+  // A tick sits halfway between the last reading before the percent moved
+  // and the first one after. A meter or token count going backwards starts
+  // the window over.
+  function recordMeterTicks() {
+    if (!meterTicksLoaded) return
+    var now = Date.now()
+    var old = meterTicks || {}
+    var next = {}
+    var changed = false
+    for (var k in old) {
+      if (Number(k.split("|").pop()) * 3600000 > now) next[k] = old[k]
+      else changed = true
+    }
+    for (var i = 0; i < providers.length; i++) {
+      var p = providers[i]
+      if (!p || p.providerId === "overall") continue
+      var list = p.limits || []
+      for (var j = 0; j < list.length; j++) {
+        var entry = list[j] || {}
+        var span = windowSpanFor(entry)
+        if (span < 24 * 3600 * 1000) continue
+        var percent = Number(entry.percent)
+        var key = meterKey(p, entry)
+        if (!(percent >= 0) || key === "") continue
+        var spent = tokensInWindow(p, new Date(String(entry.resetsAt)).getTime() - span)
+        if (!(spent >= 0)) continue
+        var m = next[key] || {}
+        var last = m.last
+        if (last && (percent < last.p || spent < last.t)) {
+          m = {}
+          last = null
+        }
+        if (last && percent > last.p) {
+          var tick = { t: (last.t + spent) / 2, p: percent }
+          if (!m.first) m.first = tick
+          else m.latest = tick
+        }
+        if (!last || last.p !== percent || last.t !== spent) changed = true
+        m.last = { t: spent, p: percent }
+        next[key] = m
+      }
+    }
+    if (!changed) return
+    meterTicks = next
+    meterTicksFile.setText(JSON.stringify(next) + "\n")
+  }
+
+  // Tokens between ticks over the fraction between them, once the meter has
+  // moved a whole point since the first tick. Before that, spent in the open
+  // window divided by the fraction used. Every week or month meter gets its
+  // own estimate except Other Models, whose tokens are a different optional
+  // pool. Overall mixes plans, so it skips.
   function estimateCap(p, entry) {
     if (!p || p.providerId === "overall") return ""
     var span = windowSpanFor(entry)
     if (span < 24 * 3600 * 1000) return ""
+    var suffix = span >= 20 * 24 * 3600 * 1000 ? "/month" : "/week"
+    var m = meterTicks[meterKey(p, entry)]
+    if (m && m.first && m.latest && m.latest.p - m.first.p >= 0.0099) {
+      var ticked = (m.latest.t - m.first.t) / (m.latest.p - m.first.p)
+      if (ticked > 0) return "≈ " + usage.formatTokenCount(ticked) + suffix
+    }
     var percent = Number(entry.percent)
     if (!(percent >= 0.02)) return ""
     var reset = new Date(String(entry.resetsAt || "")).getTime()
@@ -180,7 +271,6 @@ Panel {
     var spent = tokensInWindow(p, reset - span)
     if (!(spent > 0)) return ""
     var cap = spent / Math.min(percent, 1)
-    var suffix = span >= 20 * 24 * 3600 * 1000 ? "/month" : "/week"
     return "≈ " + usage.formatTokenCount(cap) + suffix
   }
 
